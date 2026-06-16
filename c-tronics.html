@@ -45,7 +45,7 @@ a{color:inherit;text-decoration:none}
 .hidden{display:none !important}
 
 /* ===================== LOGIN ===================== */
-#loginScreen{
+#loginScreen,#forcePassScreen{
   position:fixed;inset:0;
   background:linear-gradient(135deg,#1e3a5f 0%,#152a47 50%,#0f1e36 100%);
   display:flex;align-items:center;justify-content:center;
@@ -401,6 +401,10 @@ tbody tr:last-child td{border-bottom:none}
   from{transform:translateX(100%);opacity:0}
   to{transform:translateX(0);opacity:1}
 }
+@keyframes pulse{
+  0%,100%{opacity:1}
+  50%{opacity:.3}
+}
 
 /* ===================== POS (VENTAS) ===================== */
 .pos-grid{
@@ -546,7 +550,39 @@ body.dark tbody tr:hover{background:#283548}
     <div class="login-hint">
       💡 <strong>Demo:</strong> Usuario <code>admin</code> · Contraseña <code>admin123</code>
     </div>
-    <div class="login-footer">v1.0.0 · Sistema local · C-TRONICS SOLUCIONES 2026</div>
+    <div class="login-footer">v1.1.0 · SQLite local · C-TRONICS SOLUCIONES 2026</div>
+  </div>
+</div>
+
+<!-- ============================================================
+     CAMBIO DE CONTRASEÑA OBLIGATORIO (tras restablecer)
+     ============================================================ -->
+<div id="forcePassScreen" class="hidden">
+  <div class="login-card">
+    <div class="login-logo"><span class="bolt">⚡</span> C-TRONICS</div>
+    <div class="login-sub">CAMBIO DE CONTRASEÑA OBLIGATORIO</div>
+
+    <form class="login-form" onsubmit="return doForcedPassChange(event)">
+      <div class="login-hint" style="margin-top:0;margin-bottom:18px">
+        🔒 Tu contraseña fue restablecida. Crea una nueva para continuar.
+      </div>
+      <div class="field">
+        <label>Nueva contraseña</label>
+        <div class="field-input">
+          <span class="icon">🔒</span>
+          <input type="password" id="fpNueva" placeholder="Mínimo 6 caracteres">
+        </div>
+      </div>
+      <div class="field">
+        <label>Confirmar nueva contraseña</label>
+        <div class="field-input">
+          <span class="icon">🔒</span>
+          <input type="password" id="fpConfirm" placeholder="Repite la nueva contraseña">
+        </div>
+      </div>
+      <button type="submit" class="btn-login">GUARDAR Y CONTINUAR →</button>
+      <div id="fpError" class="login-error hidden"></div>
+    </form>
   </div>
 </div>
 
@@ -564,10 +600,15 @@ body.dark tbody tr:hover{background:#283548}
       <div class="menu-label">Menú Principal</div>
       <button class="menu-item active" data-view="dashboard" onclick="navTo('dashboard')"><span class="ico">📊</span> Dashboard</button>
       <button class="menu-item" data-view="productos" onclick="navTo('productos')"><span class="ico">📦</span> Productos</button>
+      <button class="menu-item" data-view="categorias" onclick="navTo('categorias')"><span class="ico">🏷️</span> Categorías</button>
       <button class="menu-item" data-view="inventario" onclick="navTo('inventario')"><span class="ico">📋</span> Inventario</button>
       <button class="menu-item" data-view="ventas" onclick="navTo('ventas')"><span class="ico">🛒</span> Ventas</button>
       <button class="menu-item" data-view="clientes" onclick="navTo('clientes')"><span class="ico">👥</span> Clientes</button>
       <button class="menu-item" data-view="reportes" onclick="navTo('reportes')"><span class="ico">📈</span> Reportes</button>
+      <div class="menu-label" style="margin-top:14px">Base de datos</div>
+      <button class="menu-item" data-view="esquema" onclick="navTo('esquema')"><span class="ico">🗂️</span> Esquema BD</button>
+      <button class="menu-item" data-view="tablas" onclick="navTo('tablas')"><span class="ico">📋</span> Visor de Tablas</button>
+      <button class="menu-item" data-view="bitacora" onclick="navTo('bitacora')"><span class="ico">🧾</span> Bitácora</button>
       <button class="menu-item" data-view="config" onclick="navTo('config')"><span class="ico">⚙️</span> Configuración</button>
     </nav>
     <div class="sidebar-footer">
@@ -621,76 +662,141 @@ body.dark tbody tr:hover{background:#283548}
    C-TRONICS · LÓGICA DE LA APLICACIÓN
    ============================================================ */
 
-/* ---------- ESTADO LOCAL (sincronizado con la API SQLite) ---------- */
-const API = '';  // mismo origen Flask (http://localhost:5000)
-const CATEGORIAS = ['SMARTPHONES','ACCESORIOS','CÓMPUTO','AUDIO','VIDEO'];
+/* ============================================================
+   BASE DE DATOS LOCAL · Modelo relacional en memoria
+   Persistencia automática en localStorage · instantáneo
+   ============================================================ */
+const DB_KEY = 'ctronics_data_v2';
 
-let productos = [];  // cargado vía /api/productos
-let clientes  = [];  // cargado vía /api/clientes
-let ventas    = [];  // cargado vía /api/ventas
+// "Tablas" del modelo (siguen el diagrama de clases)
+let productos = [];
+let clientes  = [];
+let ventas    = [];
+let usuarios  = [];
+let categorias= [];
+let inventarioMovs = [];
+let reportes  = [];
+let bitacora  = [];
 
-/* ---------- CLIENTE HTTP MINIMALISTA ---------- */
-async function api(method, path, body){
-  const opts = {method, headers:{'Content-Type':'application/json'}};
-  if(body) opts.body = JSON.stringify(body);
-  const res = await fetch(API + path, opts);
-  const data = await res.json().catch(()=>({}));
-  if(!res.ok){
-    const msg = data.error || `Error ${res.status}`;
-    toast(msg, 'error');
-    throw new Error(msg);
-  }
-  return data;
+// Contadores autoincrementales (simulan PRIMARY KEY AUTOINCREMENT)
+let nextId = {prod:1, cli:1, venta:1, det:1, mov:1, usr:1, cat:1, rep:1, log:1};
+
+/* ---------- Persistencia ---------- */
+function saveAll(){
+  localStorage.setItem(DB_KEY, JSON.stringify({
+    productos, clientes, ventas, usuarios, categorias, inventarioMovs, reportes, bitacora, nextId
+  }));
 }
 
-/* ---------- MAPEADORES (BD → modelo del front) ---------- */
-function mapProducto(p){
-  return {
-    id: p.idProducto, codigo: p.codigo, nombre: p.nombre,
-    categoria: p.categoria || 'SMARTPHONES',
-    costo: p.precioCosto, precio: p.precioVenta,
-    stock: p.stock, stockMin: p.stockMinimo
-  };
-}
-function mapCliente(c){
-  return {
-    id: c.idCliente,
-    nombre: (c.nombres + ' ' + (c.apellidos||'')).trim(),
-    doc: c.dniRuc, tel: c.telefono, email: c.email,
-    totalComprado: c.totalComprado
-  };
-}
-function mapVenta(v){
-  return {
-    id: v.idVenta, fecha: v.fecha,
-    clienteId: v.idCliente, clienteNombre: v.clienteNombre,
-    total: v.total, estado: v.estado,
-    items: (v.items||[]).map(i=>({
-      prodId: i.idProducto, nombre: i.productoNombre,
-      cant: i.cantidad, precio: i.precioUnitario
-    }))
-  };
-}
-
-/* ---------- CARGA INICIAL DESDE LA BD ---------- */
-async function loadAllData(){
+function loadFromStorage(){
+  const raw = localStorage.getItem(DB_KEY);
+  if(!raw) return false;
   try{
-    const [prods, clis, vts] = await Promise.all([
-      api('GET','/api/productos'),
-      api('GET','/api/clientes'),
-      api('GET','/api/ventas'),
-    ]);
-    productos = prods.map(mapProducto);
-    clientes  = clis.map(mapCliente);
-    ventas    = vts.map(mapVenta);
-  } catch(e){
-    toast('No se pudo conectar al servidor. ¿Está corriendo app.py?','error');
-    throw e;
-  }
+    const d = JSON.parse(raw);
+    productos = d.productos || [];
+    clientes  = d.clientes  || [];
+    ventas    = d.ventas    || [];
+    usuarios  = d.usuarios  || [];
+    categorias= d.categorias|| [];
+    inventarioMovs = d.inventarioMovs || [];
+    reportes  = d.reportes  || [];
+    bitacora  = d.bitacora  || [];
+    nextId    = d.nextId    || nextId;
+    return true;
+  } catch(e){ return false; }
+}
+
+/* ---------- Bitácora · registro de actividad del sistema ---------- */
+function logActividad(tipo, descripcion){
+  // Si los datos vienen de una versión previa sin contador de bitácora, inicialízalo
+  if(!nextId.log) nextId.log = bitacora.reduce((m,e)=>Math.max(m, e.id||0), 0) + 1;
+  bitacora.push({
+    id: nextId.log++,
+    fecha: new Date().toISOString().slice(0,19).replace('T',' '),
+    usuario: usuarioActual?.nombreUsuario || 'sistema',
+    tipo,
+    descripcion
+  });
+  saveAll();
+}
+
+/* ---------- Datos seed (primera carga) ---------- */
+function seedData(){
+  usuarios = [{id:1, nombreUsuario:'admin', contrasena:'admin123', rol:'Administrador', activo:1}];
+
+  categorias = [
+    {id:1, nombre:'SMARTPHONES', descripcion:'Telefonía celular'},
+    {id:2, nombre:'ACCESORIOS',  descripcion:'Cables, cargadores y periféricos menores'},
+    {id:3, nombre:'CÓMPUTO',     descripcion:'Equipos y periféricos de cómputo'},
+    {id:4, nombre:'AUDIO',       descripcion:'Parlantes, audífonos y micrófonos'},
+    {id:5, nombre:'VIDEO',       descripcion:'Televisores y monitores'},
+  ];
+
+  productos = [
+    {id:1, codigo:'E-001', nombre:'Samsung Galaxy A15',         categoria:'SMARTPHONES', costo:480, precio:689, stock:24, stockMin:5},
+    {id:2, codigo:'E-002', nombre:'Audífonos Bluetooth JBL',    categoria:'ACCESORIOS',  costo:60,  precio:120, stock:45, stockMin:10},
+    {id:3, codigo:'E-003', nombre:'Teclado Mecánico RGB',       categoria:'CÓMPUTO',     costo:95,  precio:180, stock:5,  stockMin:8},
+    {id:4, codigo:'E-004', nombre:'Cargador 65W USB-C',         categoria:'ACCESORIOS',  costo:35,  precio:89,  stock:2,  stockMin:10},
+    {id:5, codigo:'E-005', nombre:'Mouse Inalámbrico Logitech', categoria:'CÓMPUTO',     costo:50,  precio:95,  stock:18, stockMin:6},
+    {id:6, codigo:'E-006', nombre:'iPhone 13 128GB',            categoria:'SMARTPHONES', costo:2200,precio:2899,stock:8,  stockMin:3},
+    {id:7, codigo:'E-007', nombre:'Parlante JBL Go 3',          categoria:'AUDIO',       costo:120, precio:199, stock:12, stockMin:5},
+    {id:8, codigo:'E-008', nombre:'Cable USB-C 1m',             categoria:'ACCESORIOS',  costo:8,   precio:20,  stock:60, stockMin:15},
+    {id:9, codigo:'E-009', nombre:'Smart TV 43" 4K',            categoria:'VIDEO',       costo:1100,precio:1499,stock:6,  stockMin:2},
+    {id:10,codigo:'E-010', nombre:'Power Bank 20000mAh',        categoria:'ACCESORIOS',  costo:55,  precio:120, stock:14, stockMin:5},
+  ];
+
+  clientes = [
+    {id:1, nombre:'María Quispe Huamán',   doc:'45678912',    tel:'987654321', email:'maria.q@gmail.com',      direccion:'Av. Brasil 123',         totalComprado:1245.50},
+    {id:2, nombre:'José García Vargas',    doc:'12345678',    tel:'956123456', email:'jose.garcia@hotmail.com',direccion:'Jr. Cusco 456',          totalComprado:580.00},
+    {id:3, nombre:'Tienda El Sol SAC',     doc:'20512345678', tel:'014567890', email:'ventas@elsol.com.pe',    direccion:'Av. Wilson 789',         totalComprado:8450.00},
+    {id:4, nombre:'Carlos Mendoza Ríos',   doc:'78945612',    tel:'998877665', email:'cmendoza@gmail.com',     direccion:'Calle Las Flores 321',   totalComprado:320.00},
+    {id:5, nombre:'Ana Lucía Torres',      doc:'56789123',    tel:'987112233', email:'ana.torres@yahoo.es',    direccion:'Av. Arequipa 1500',      totalComprado:1899.00},
+    {id:6, nombre:'Distribuidora LR EIRL', doc:'20587634521', tel:'016654321', email:'compras@lr.pe',          direccion:'Av. Argentina 200',      totalComprado:5230.00},
+    {id:7, nombre:'Pedro Salazar Aliaga',  doc:'42315678',    tel:'945678901', email:'pedrosalazar@gmail.com', direccion:'Jr. Junín 88',           totalComprado:189.00},
+    {id:8, nombre:'Rosa Fernández Cruz',   doc:'67891234',    tel:'923456789', email:'rosaf@outlook.com',      direccion:'Av. La Marina 999',      totalComprado:760.50},
+  ];
+
+  const today = new Date().toISOString().slice(0,10);
+  const ventasSeed = [
+    {cliId:1, hora:'09:14', items:[{cod:'E-002',cant:1,precio:120}]},
+    {cliId:2, hora:'10:32', items:[{cod:'E-001',cant:1,precio:689}]},
+    {cliId:4, hora:'11:48', items:[{cod:'E-004',cant:2,precio:89},{cod:'E-008',cant:1,precio:20}]},
+    {cliId:5, hora:'13:05', items:[{cod:'E-003',cant:1,precio:180},{cod:'E-005',cant:1,precio:95}]},
+    {cliId:7, hora:'14:22', items:[{cod:'E-007',cant:1,precio:199}]},
+  ];
+
+  let vid = 1001, did = 1, mid = 1;
+  ventas = ventasSeed.map(v => {
+    const fecha = `${today} ${v.hora}`;
+    const items = v.items.map(it => {
+      const p = productos.find(pr => pr.codigo === it.cod);
+      inventarioMovs.push({id:mid++, idProducto:p.id, fecha, tipoMovimiento:'SALIDA', cantidad:it.cant, motivo:`Venta #${vid}`});
+      return {idDetalle:did++, prodId:p.id, nombre:p.nombre, cant:it.cant, precio:it.precio};
+    });
+    const total = items.reduce((s,i)=>s+i.cant*i.precio, 0);
+    const cli = clientes.find(c=>c.id===v.cliId);
+    return {
+      id: vid++, fecha,
+      clienteId: v.cliId, clienteNombre: cli.nombre,
+      items, total, igv: total*0.18/1.18, subtotal: total - total*0.18/1.18,
+      estado:'COMPLETADA', idUsuario:1
+    };
+  });
+
+  nextId = {prod:11, cli:9, venta:1006, det:did, mov:mid, usr:2, cat:6, rep:1, log:1};
+  saveAll();
+}
+
+/* ---------- Inicialización (instantánea) ---------- */
+function loadAllData(){
+  if(!loadFromStorage()) seedData();
 }
 
 /* Carrito POS actual */
 let cart = {clienteId:null, items:[]};
+
+/* Usuario autenticado actualmente (se asigna en el login) */
+let usuarioActual = null;
 
 /* Empresa (config) */
 let empresa = {
@@ -705,6 +811,11 @@ const $ = (sel,ctx=document)=>ctx.querySelector(sel);
 const $$ = (sel,ctx=document)=>[...ctx.querySelectorAll(sel)];
 const money = n => 'S/ ' + Number(n).toLocaleString('es-PE',{minimumFractionDigits:2, maximumFractionDigits:2});
 const esc = s => String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* Permisos: solo el rol Administrador puede ejecutar acciones sensibles (p. ej. anular ventas) */
+function esAdmin(){
+  return !!usuarioActual && usuarioActual.rol === 'Administrador';
+}
 
 function badgeCat(cat){
   const map = {SMARTPHONES:'badge-info','ACCESORIOS':'badge-amber','CÓMPUTO':'badge-purple','AUDIO':'badge-navy','VIDEO':'badge-success'};
@@ -728,47 +839,76 @@ function setDate(){
 }
 
 /* ---------- LOGIN ---------- */
-async function doLogin(e){
+function doLogin(e){
   e.preventDefault();
   const u = $('#loginUser').value.trim();
   const p = $('#loginPass').value.trim();
   const err = $('#loginError');
-  if(u!=='admin' || p!=='admin123'){
-    err.textContent = 'Credenciales incorrectas. Usa admin / admin123';
+  const user = usuarios.find(x=>x.nombreUsuario===u && x.activo);
+  if(!user || user.contrasena !== p){
+    err.textContent = 'Usuario o contraseña incorrectos';
     err.classList.remove('hidden');
     return false;
   }
   err.classList.add('hidden');
-  const btn = e.target.querySelector('button[type=submit]');
-  const prev = btn.textContent;
-  btn.textContent = 'CONECTANDO A LA BASE DE DATOS...';
-  btn.disabled = true;
-  try{
-    await loadAllData();
-    $('#loginScreen').classList.add('hidden');
-    $('#app').classList.remove('hidden');
-    setDate();
-    navTo('dashboard');
-  } catch(_){
-    err.textContent = 'No se pudo conectar al servidor Flask en :5000';
-    err.classList.remove('hidden');
-  } finally {
-    btn.textContent = prev;
-    btn.disabled = false;
+  usuarioActual = user;
+  logActividad('Sesión', `Inicio de sesión de "${user.nombreUsuario}"`);
+  $('#loginScreen').classList.add('hidden');
+  setDate();
+  // Si la contraseña fue restablecida, obligar a definir una nueva antes de entrar
+  if(user.debeCambiarContrasena){
+    openForcedPassChange();
+    return false;
   }
+  $('#app').classList.remove('hidden');
+  navTo('dashboard');
   return false;
 }
 
 function logout(){
+  usuarioActual = null;
   $('#app').classList.add('hidden');
   $('#loginScreen').classList.remove('hidden');
   $('#loginPass').value = 'admin123';
 }
 
+/* ---------- Cambio de contraseña obligatorio (tras restablecer) ---------- */
+function openForcedPassChange(){
+  $('#fpNueva').value = '';
+  $('#fpConfirm').value = '';
+  $('#fpError').classList.add('hidden');
+  $('#forcePassScreen').classList.remove('hidden');
+}
+
+function doForcedPassChange(e){
+  e.preventDefault();
+  const nueva = $('#fpNueva').value;
+  const conf  = $('#fpConfirm').value;
+  const err   = $('#fpError');
+  if(nueva.length < 6){
+    err.textContent = 'La nueva contraseña debe tener al menos 6 caracteres';
+    err.classList.remove('hidden'); return false;
+  }
+  if(nueva !== conf){
+    err.textContent = 'La confirmación no coincide';
+    err.classList.remove('hidden'); return false;
+  }
+  usuarioActual.contrasena = nueva;
+  usuarioActual.debeCambiarContrasena = false;
+  saveAll();
+  logActividad('Seguridad', 'Cambio de contraseña obligatorio');
+  $('#forcePassScreen').classList.add('hidden');
+  $('#app').classList.remove('hidden');
+  navTo('dashboard');
+  toast('Contraseña actualizada correctamente','success');
+  return false;
+}
+
 /* ---------- NAVEGACIÓN ENTRE MÓDULOS ---------- */
 const VIEW_TITLES = {
-  dashboard:'Dashboard', productos:'Gestión de Productos', inventario:'Inventario',
-  ventas:'Ventas · POS', clientes:'Clientes', reportes:'Reportes', config:'Configuración'
+  dashboard:'Dashboard', productos:'Gestión de Productos', categorias:'Categorías', inventario:'Inventario',
+  ventas:'Ventas · POS', clientes:'Clientes', reportes:'Reportes',
+  esquema:'Esquema de la Base de Datos', tablas:'Visor de Tablas', bitacora:'Bitácora de Actividad', config:'Configuración'
 };
 
 function navTo(view){
@@ -778,10 +918,14 @@ function navTo(view){
   switch(view){
     case 'dashboard': renderDashboard(); break;
     case 'productos': renderProductos(); break;
+    case 'categorias': renderCategorias(); break;
     case 'inventario': renderInventario(); break;
     case 'ventas': renderVentas(); break;
     case 'clientes': renderClientes(); break;
     case 'reportes': renderReportes(); break;
+    case 'esquema': renderEsquema(); break;
+    case 'tablas': renderTablas(); break;
+    case 'bitacora': renderBitacora(); break;
     case 'config': renderConfig(); break;
   }
 }
@@ -791,7 +935,8 @@ function navTo(view){
    ============================================================ */
 function renderDashboard(){
   const stockCritico = productos.filter(p=>p.stock<=p.stockMin).length;
-  const ventasHoy = ventas.reduce((s,v)=>s+v.total,0);
+  const ventasValidas = ventas.filter(v=>v.estado!=='ANULADA');
+  const ventasHoy = ventasValidas.reduce((s,v)=>s+v.total,0);
 
   // ventas últimos 7 días (simuladas con variación)
   const dias7 = ['Sáb','Dom','Lun','Mar','Mié','Jue','Vie'];
@@ -839,7 +984,7 @@ function renderDashboard(){
         <div class="kpi-info">
           <div class="label">Ventas Hoy</div>
           <div class="value">${money(ventasHoy)}</div>
-          <div class="hint">${ventas.length} transacciones</div>
+          <div class="hint">${ventasValidas.length} transacciones</div>
         </div>
       </div>
     </div>
@@ -862,7 +1007,7 @@ function renderDashboard(){
                   <td>${v.items.map(i=>esc(i.nombre)+' ×'+i.cant).join(', ')}</td>
                   <td><strong>${money(v.total)}</strong></td>
                   <td>${v.fecha.split(' ')[1]}</td>
-                  <td><span class="badge badge-success">${v.estado}</span></td>
+                  <td><span class="badge ${v.estado==='ANULADA'?'badge-danger':'badge-success'}">${v.estado}</span></td>
                 </tr>
               `).join('')}
             </tbody>
@@ -912,7 +1057,7 @@ function renderProductos(){
       </div>
       <select class="select" id="prodCatFilter" onchange="filtroProdCat=this.value;renderProductosTabla()">
         <option value="">Todas las categorías</option>
-        ${CATEGORIAS.map(c=>`<option ${c===filtroProdCat?'selected':''}>${c}</option>`).join('')}
+        ${categorias.map(c=>`<option ${c.nombre===filtroProdCat?'selected':''}>${esc(c.nombre)}</option>`).join('')}
       </select>
     </div>
 
@@ -968,7 +1113,7 @@ function renderProductosTabla(){
 
 function openProductoPanel(id=null){
   const nextCode = 'E-'+String(productos.length+1).padStart(3,'0');
-  const p = id ? productos.find(x=>x.id===id) : {codigo:nextCode, nombre:'', categoria:'SMARTPHONES', costo:0, precio:0, stock:0, stockMin:5};
+  const p = id ? productos.find(x=>x.id===id) : {codigo:nextCode, nombre:'', categoria:(categorias[0]?.nombre || ''), costo:0, precio:0, stock:0, stockMin:5};
   $('#panelTitle').textContent = id ? 'Editar Producto' : 'Nuevo Producto';
   $('#panelBody').innerHTML = `
     <div class="form-group">
@@ -982,7 +1127,7 @@ function openProductoPanel(id=null){
     <div class="form-group">
       <label>Categoría</label>
       <select id="fProdCat">
-        ${CATEGORIAS.map(c=>`<option ${c===p.categoria?'selected':''}>${c}</option>`).join('')}
+        ${categorias.map(c=>`<option ${c.nombre===p.categoria?'selected':''}>${esc(c.nombre)}</option>`).join('')}
       </select>
     </div>
     <div class="form-row">
@@ -1010,40 +1155,170 @@ function openProductoPanel(id=null){
   openPanel();
 }
 
-async function guardarProducto(id){
-  const payload = {
-    codigo: $('#fProdCodigo').value.trim(),
-    nombre: $('#fProdNombre').value.trim(),
-    categoria: $('#fProdCat').value,
-    precioCosto: parseFloat($('#fProdCosto').value)||0,
-    precioVenta: parseFloat($('#fProdPrecio').value)||0,
-    stock: parseInt($('#fProdStock').value)||0,
-    stockMinimo: parseInt($('#fProdStockMin').value)||0,
-  };
-  if(!payload.nombre || !payload.codigo){ toast('Código y nombre son obligatorios','error'); return; }
-  try{
-    if(id){
-      await api('PUT', `/api/productos/${id}`, payload);
-      toast('Producto actualizado correctamente');
-    } else {
-      await api('POST', '/api/productos', payload);
-      toast('Producto creado correctamente');
-    }
-    productos = (await api('GET','/api/productos')).map(mapProducto);
-    closePanel();
-    renderProductosTabla();
-  } catch(_){}
+function guardarProducto(id){
+  const codigo = $('#fProdCodigo').value.trim();
+  const nombre = $('#fProdNombre').value.trim();
+  const categoria = $('#fProdCat').value;
+  const costo  = parseFloat($('#fProdCosto').value)||0;
+  const precio = parseFloat($('#fProdPrecio').value)||0;
+  const stock  = parseInt($('#fProdStock').value)||0;
+  const smin   = parseInt($('#fProdStockMin').value)||0;
+  if(!nombre || !codigo){ toast('Código y nombre son obligatorios','error'); return; }
+
+  // Validar código duplicado
+  if(productos.some(p => p.codigo === codigo && p.id !== id)){
+    toast('Ya existe un producto con ese código','error'); return;
+  }
+
+  if(id){
+    Object.assign(productos.find(p=>p.id===id), {codigo, nombre, categoria, costo, precio, stock, stockMin:smin});
+    logActividad('Producto', `Producto editado: ${codigo} · ${nombre}`);
+    toast('Producto actualizado correctamente');
+  } else {
+    productos.push({id: nextId.prod++, codigo, nombre, categoria, costo, precio, stock, stockMin:smin});
+    logActividad('Producto', `Producto creado: ${codigo} · ${nombre}`);
+    toast('Producto creado correctamente');
+  }
+  saveAll();
+  closePanel();
+  renderProductosTabla();
 }
 
-async function eliminarProducto(id){
+function eliminarProducto(id){
   const p = productos.find(x=>x.id===id);
   if(!confirm(`¿Eliminar el producto "${p.nombre}"?`)) return;
-  try{
-    await api('DELETE', `/api/productos/${id}`);
-    productos = productos.filter(x=>x.id!==id);
-    toast('Producto eliminado','warn');
-    renderProductosTabla();
-  } catch(_){}
+  productos = productos.filter(x=>x.id!==id);
+  saveAll();
+  logActividad('Producto', `Producto eliminado: ${p.codigo} · ${p.nombre}`);
+  toast('Producto eliminado','warn');
+  renderProductosTabla();
+}
+
+/* ============================================================
+   MÓDULO 2.1 · CATEGORÍAS
+   ============================================================ */
+let filtroCatTxt = '';
+
+function renderCategorias(){
+  $('#content').innerHTML = `
+    <div class="page-header">
+      <div>
+        <div class="page-title">Gestión de Categorías</div>
+        <div class="page-sub">${categorias.length} categorías registradas</div>
+      </div>
+      <button class="btn btn-primary" onclick="openCategoriaPanel()">+ Nueva Categoría</button>
+    </div>
+
+    <div class="toolbar">
+      <div class="search">
+        <input type="text" id="catSearch" placeholder="Buscar por nombre o descripción..." value="${esc(filtroCatTxt)}" oninput="filtroCatTxt=this.value;renderCategoriasTabla()">
+      </div>
+    </div>
+
+    <div id="catTablaWrap"></div>
+  `;
+  renderCategoriasTabla();
+}
+
+function renderCategoriasTabla(){
+  const txt = filtroCatTxt.toLowerCase();
+  const list = categorias.filter(c =>
+    !txt || c.nombre.toLowerCase().includes(txt) || (c.descripcion||'').toLowerCase().includes(txt)
+  );
+
+  $('#catTablaWrap').innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Nombre</th><th>Descripción</th><th>Productos</th><th>Acciones</th></tr>
+        </thead>
+        <tbody>
+          ${list.length===0 ? `<tr><td colspan="5" class="empty"><div class="em-ico">🏷️</div>No se encontraron categorías</td></tr>` :
+          list.map(c=>{
+            const usados = productos.filter(p=>p.categoria===c.nombre).length;
+            return `
+              <tr>
+                <td><strong>#${String(c.id).padStart(3,'0')}</strong></td>
+                <td>${badgeCat(c.nombre)}</td>
+                <td>${esc(c.descripcion||'—')}</td>
+                <td><strong>${usados}</strong> producto(s)</td>
+                <td>
+                  <div class="row-actions">
+                    <button class="icon-btn" title="Editar" onclick="openCategoriaPanel(${c.id})">✏️</button>
+                    <button class="icon-btn danger" title="Eliminar" onclick="eliminarCategoria(${c.id})">🗑️</button>
+                  </div>
+                </td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function openCategoriaPanel(id=null){
+  const c = id ? categorias.find(x=>x.id===id) : {nombre:'', descripcion:''};
+  $('#panelTitle').textContent = id ? 'Editar Categoría' : 'Nueva Categoría';
+  $('#panelBody').innerHTML = `
+    <div class="form-group">
+      <label>Nombre de la categoría *</label>
+      <input type="text" id="fCatNombre" value="${esc(c.nombre)}" placeholder="Ej: SMARTPHONES">
+    </div>
+    <div class="form-group">
+      <label>Descripción</label>
+      <textarea id="fCatDesc" rows="3" placeholder="Breve descripción de la categoría...">${esc(c.descripcion||'')}</textarea>
+    </div>
+  `;
+  $('#panelSaveBtn').onclick = ()=>guardarCategoria(id);
+  openPanel();
+}
+
+function guardarCategoria(id){
+  const nombre = $('#fCatNombre').value.trim();
+  const descripcion = $('#fCatDesc').value.trim();
+  if(!nombre){ toast('El nombre de la categoría es obligatorio','error'); return; }
+
+  // Validar nombre duplicado (sin distinguir mayúsculas/minúsculas)
+  if(categorias.some(c => c.nombre.toLowerCase() === nombre.toLowerCase() && c.id !== id)){
+    toast('Ya existe una categoría con ese nombre','error'); return;
+  }
+
+  if(id){
+    const cat = categorias.find(c=>c.id===id);
+    const nombreAnterior = cat.nombre;
+    Object.assign(cat, {nombre, descripcion});
+    // Si cambió el nombre, propagarlo a los productos que la usaban (mantiene el vínculo)
+    if(nombreAnterior !== nombre){
+      productos.forEach(p=>{ if(p.categoria===nombreAnterior) p.categoria = nombre; });
+    }
+    logActividad('Categoría', nombreAnterior!==nombre ? `Categoría renombrada: "${nombreAnterior}" → "${nombre}"` : `Categoría editada: ${nombre}`);
+    toast('Categoría actualizada');
+  } else {
+    categorias.push({id: nextId.cat++, nombre, descripcion});
+    logActividad('Categoría', `Categoría creada: ${nombre}`);
+    toast('Categoría creada');
+  }
+  saveAll();
+  closePanel();
+  renderCategoriasTabla();
+}
+
+function eliminarCategoria(id){
+  const c = categorias.find(x=>x.id===id);
+  if(!c) return;
+  // No permitir eliminar si tiene productos asignados
+  const usados = productos.filter(p=>p.categoria===c.nombre).length;
+  if(usados>0){
+    toast(`No se puede eliminar: ${usados} producto(s) usan la categoría "${c.nombre}"`,'error');
+    return;
+  }
+  if(!confirm(`¿Eliminar la categoría "${c.nombre}"?`)) return;
+  categorias = categorias.filter(x=>x.id!==id);
+  saveAll();
+  logActividad('Categoría', `Categoría eliminada: ${c.nombre}`);
+  toast('Categoría eliminada','warn');
+  renderCategoriasTabla();
 }
 
 /* ============================================================
@@ -1138,20 +1413,22 @@ function openEntradaPanel(){
   openPanel();
 }
 
-async function guardarEntrada(){
+function guardarEntrada(){
   const pid = parseInt($('#fEntradaProd').value);
   const cant = parseInt($('#fEntradaCant').value)||0;
-  const motivo = ($('#fEntradaProv').value || '') + ' ' + ($('#fEntradaObs').value || '');
+  const motivo = (($('#fEntradaProv').value || '') + ' ' + ($('#fEntradaObs').value || '')).trim() || 'Reposición de stock';
   if(cant<=0){ toast('La cantidad debe ser mayor a 0','error'); return; }
-  try{
-    await api('POST','/api/inventario/entrada', {idProducto:pid, cantidad:cant, motivo:motivo.trim()});
-    const p = productos.find(x=>x.id===pid);
-    p.stock += cant;
-    toast(`+${cant} uds. ingresadas a ${p.nombre}`);
-    $('#panelSaveBtn').textContent = 'Guardar Cambios';
-    closePanel();
-    renderInventario();
-  } catch(_){}
+
+  const fecha = new Date().toISOString().slice(0,16).replace('T',' ');
+  const p = productos.find(x=>x.id===pid);
+  p.stock += cant;
+  inventarioMovs.push({id: nextId.mov++, idProducto:pid, fecha, tipoMovimiento:'ENTRADA', cantidad:cant, motivo});
+  saveAll();
+
+  toast(`+${cant} uds. ingresadas a ${p.nombre}`);
+  $('#panelSaveBtn').textContent = 'Guardar Cambios';
+  closePanel();
+  renderInventario();
 }
 
 /* ============================================================
@@ -1200,16 +1477,21 @@ function renderVentas(){
       <div class="section-title" style="margin-bottom:12px">Historial de ventas del día</div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>#</th><th>Fecha</th><th>Cliente</th><th>Items</th><th>Total</th><th>Estado</th></tr></thead>
+          <thead><tr><th>#</th><th>Fecha</th><th>Cliente</th><th>Items</th><th>Total</th><th>Estado</th><th>Acciones</th></tr></thead>
           <tbody>
             ${[...ventas].reverse().map(v=>`
-              <tr>
+              <tr class="${v.estado==='ANULADA'?'row-danger':''}">
                 <td><strong>#${v.id}</strong></td>
                 <td>${v.fecha}</td>
                 <td>${esc(v.clienteNombre)}</td>
                 <td>${v.items.reduce((s,i)=>s+i.cant,0)} ítems</td>
                 <td><strong>${money(v.total)}</strong></td>
-                <td><span class="badge badge-success">${v.estado}</span></td>
+                <td><span class="badge ${v.estado==='ANULADA'?'badge-danger':'badge-success'}">${v.estado}</span></td>
+                <td>
+                  ${v.estado==='COMPLETADA' && esAdmin()
+                    ? `<button class="btn btn-danger btn-sm" onclick="anularVenta(${v.id})">Anular</button>`
+                    : '<span style="color:var(--text-muted)">—</span>'}
+                </td>
               </tr>
             `).join('')}
           </tbody>
@@ -1308,29 +1590,78 @@ function vaciarCart(){
   renderCart();
 }
 
-async function registrarVenta(){
+function registrarVenta(){
   if(cart.items.length===0){ toast('El carrito está vacío','error'); return; }
   if(!cart.clienteId){ toast('Selecciona un cliente','warn'); return; }
-  const total = cart.items.reduce((s,i)=>s+i.cant*i.precio,0);
-  try{
-    const r = await api('POST','/api/ventas', {
-      idCliente: cart.clienteId,
-      items: cart.items.map(i=>({prodId:i.prodId, cant:i.cant, precio:i.precio}))
-    });
-    // refrescar estado local desde la BD
-    const [prods, clis, vts] = await Promise.all([
-      api('GET','/api/productos'),
-      api('GET','/api/clientes'),
-      api('GET','/api/ventas'),
-    ]);
-    productos = prods.map(mapProducto);
-    clientes  = clis.map(mapCliente);
-    ventas    = vts.map(mapVenta);
 
-    toast(`Venta #${r.idVenta} registrada — Total: ${money(total)}`);
-    cart = {clienteId:null, items:[]};
-    renderVentas();
-  } catch(_){}
+  // Validar stock
+  for(const it of cart.items){
+    const p = productos.find(x=>x.id===it.prodId);
+    if(!p || p.stock < it.cant){
+      toast(`Stock insuficiente para ${p?.nombre||'producto'}`,'error');
+      return;
+    }
+  }
+
+  const total = cart.items.reduce((s,i)=>s+i.cant*i.precio,0);
+  const igv = total*0.18/1.18;
+  const base = total - igv;
+  const fecha = new Date().toISOString().slice(0,16).replace('T',' ');
+  const ventaId = nextId.venta++;
+  const cli = clientes.find(c=>c.id===cart.clienteId);
+
+  // Detalle + descuento de stock + movimiento de inventario
+  const items = cart.items.map(it=>{
+    const p = productos.find(x=>x.id===it.prodId);
+    p.stock -= it.cant;
+    inventarioMovs.push({id: nextId.mov++, idProducto: it.prodId, fecha, tipoMovimiento:'SALIDA', cantidad:it.cant, motivo:`Venta #${ventaId}`});
+    return {idDetalle: nextId.det++, prodId: it.prodId, nombre: it.nombre, cant: it.cant, precio: it.precio};
+  });
+
+  ventas.push({
+    id: ventaId, fecha,
+    clienteId: cart.clienteId, clienteNombre: cli.nombre,
+    items, total, igv, subtotal: base,
+    estado:'COMPLETADA', idUsuario: 1
+  });
+  cli.totalComprado += total;
+  saveAll();
+  logActividad('Venta', `Venta #${ventaId} registrada · ${cli.nombre} · ${money(total)}`);
+
+  toast(`Venta #${ventaId} registrada — Total: ${money(total)}`);
+  cart = {clienteId:null, items:[]};
+  renderVentas();
+}
+
+function anularVenta(id){
+  // Solo el rol Administrador puede anular
+  if(!esAdmin()){ toast('Solo el Administrador puede anular ventas','error'); return; }
+
+  const v = ventas.find(x=>x.id===id);
+  if(!v){ toast('Venta no encontrada','error'); return; }
+  if(v.estado!=='COMPLETADA'){ toast('Solo se pueden anular ventas completadas','warn'); return; }
+
+  if(!confirm(`¿Anular la venta #${v.id}? Se devolverá al stock la mercadería de esta venta. Esta acción no se puede deshacer.`)) return;
+
+  const fecha = new Date().toISOString().slice(0,16).replace('T',' ');
+
+  // Devolver al stock las cantidades de cada item y registrar el movimiento de inventario
+  v.items.forEach(it=>{
+    const p = productos.find(x=>x.id===it.prodId);
+    if(p) p.stock += it.cant;
+    inventarioMovs.push({id: nextId.mov++, idProducto: it.prodId, fecha, tipoMovimiento:'ENTRADA', cantidad: it.cant, motivo:`Anulación de venta #${v.id}`});
+  });
+
+  // Descontar el importe del total comprado histórico del cliente
+  const cli = clientes.find(c=>c.id===v.clienteId);
+  if(cli) cli.totalComprado = Math.max(0, cli.totalComprado - v.total);
+
+  v.estado = 'ANULADA';
+  saveAll();
+  logActividad('Anulación', `Venta #${v.id} anulada · stock devuelto`);
+
+  toast(`Venta #${v.id} anulada — stock devuelto`,'success');
+  renderVentas();
 }
 
 /* ============================================================
@@ -1419,46 +1750,35 @@ function openClientePanel(id=null){
   openPanel();
 }
 
-async function guardarCliente(id){
+function guardarCliente(id){
   const nombre = $('#fCliNombre').value.trim();
   const doc = $('#fCliDoc').value.trim();
   if(!nombre || !doc){ toast('Nombre y documento son obligatorios','error'); return; }
+  if(clientes.some(c => c.doc === doc && c.id !== id)){
+    toast('Ya existe un cliente con ese DNI/RUC','error'); return;
+  }
+  const tel = $('#fCliTel').value.trim();
+  const email = $('#fCliEmail').value.trim();
 
-  // Separar nombres y apellidos para el modelo de la BD
-  const parts = nombre.split(' ');
-  const nombres = parts.length>1 ? parts.slice(0,1).join(' ') : nombre;
-  const apellidos = parts.length>1 ? parts.slice(1).join(' ') : '';
-
-  const payload = {
-    dniRuc: doc,
-    nombres, apellidos,
-    telefono: $('#fCliTel').value.trim(),
-    email: $('#fCliEmail').value.trim(),
-    direccion: '',
-  };
-  try{
-    if(id){
-      await api('PUT', `/api/clientes/${id}`, payload);
-      toast('Cliente actualizado');
-    } else {
-      await api('POST', '/api/clientes', payload);
-      toast('Cliente registrado');
-    }
-    clientes = (await api('GET','/api/clientes')).map(mapCliente);
-    closePanel();
-    renderClientesTabla();
-  } catch(_){}
+  if(id){
+    Object.assign(clientes.find(c=>c.id===id), {nombre, doc, tel, email});
+    toast('Cliente actualizado');
+  } else {
+    clientes.push({id: nextId.cli++, nombre, doc, tel, email, direccion:'', totalComprado:0});
+    toast('Cliente registrado');
+  }
+  saveAll();
+  closePanel();
+  renderClientesTabla();
 }
 
-async function eliminarCliente(id){
+function eliminarCliente(id){
   const c = clientes.find(x=>x.id===id);
   if(!confirm(`¿Eliminar al cliente "${c.nombre}"?`)) return;
-  try{
-    await api('DELETE', `/api/clientes/${id}`);
-    clientes = clientes.filter(x=>x.id!==id);
-    toast('Cliente eliminado','warn');
-    renderClientesTabla();
-  } catch(_){}
+  clientes = clientes.filter(x=>x.id!==id);
+  saveAll();
+  toast('Cliente eliminado','warn');
+  renderClientesTabla();
 }
 
 function verHistorialCliente(id){
@@ -1477,7 +1797,7 @@ function verHistorialCliente(id){
         <div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px">
           <div style="display:flex;justify-content:space-between;margin-bottom:6px">
             <strong>#${v.id}</strong>
-            <span class="badge badge-success">${v.estado}</span>
+            <span class="badge ${v.estado==='ANULADA'?'badge-danger':'badge-success'}">${v.estado}</span>
           </div>
           <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">${v.fecha}</div>
           <div style="font-size:12px">${v.items.map(i=>esc(i.nombre)+' ×'+i.cant).join(', ')}</div>
@@ -1494,13 +1814,14 @@ function verHistorialCliente(id){
    MÓDULO 6 · REPORTES
    ============================================================ */
 function renderReportes(){
-  const ingresosMes = ventas.reduce((s,v)=>s+v.total,0) * 4.2; // proyección mensual simulada
+  const ventasValidas = ventas.filter(v=>v.estado!=='ANULADA');
+  const ingresosMes = ventasValidas.reduce((s,v)=>s+v.total,0) * 4.2; // proyección mensual simulada
   const margen = productos.reduce((s,p)=>s+(p.precio-p.costo)*p.stock,0);
   const margenPct = 38.5;
 
   // top productos vendidos
   const contadorProd = {};
-  ventas.forEach(v=>v.items.forEach(i=>{
+  ventasValidas.forEach(v=>v.items.forEach(i=>{
     contadorProd[i.nombre] = (contadorProd[i.nombre]||0) + i.cant;
   }));
   const topProds = Object.entries(contadorProd).sort((a,b)=>b[1]-a[1]).slice(0,5);
@@ -1539,7 +1860,7 @@ function renderReportes(){
       </div>
       <div class="kpi blue">
         <div class="kpi-ico blue">🛒</div>
-        <div class="kpi-info"><div class="label">Ventas realizadas</div><div class="value">${ventas.length * 21}</div><div class="hint">este mes</div></div>
+        <div class="kpi-info"><div class="label">Ventas realizadas</div><div class="value">${ventasValidas.length * 21}</div><div class="hint">este mes</div></div>
       </div>
       <div class="kpi amber">
         <div class="kpi-ico amber">🏆</div>
@@ -1606,7 +1927,455 @@ function renderReportes(){
 }
 
 function exportarPDF(){
-  toast('📄 PDF generado correctamente — guardado en /Descargas','info');
+  const ventasValidas = ventas.filter(v=>v.estado!=='ANULADA');
+  const ingresos = ventasValidas.reduce((s,v)=>s+v.total, 0);
+  const margenTotal = ventasValidas.reduce((s,v)=>{
+    return s + v.items.reduce((m,i)=>{
+      const p = productos.find(x=>x.id===i.prodId);
+      return m + (p ? (i.precio - p.costo)*i.cant : 0);
+    }, 0);
+  }, 0);
+  const margenPct = ingresos ? (margenTotal/ingresos*100).toFixed(1) : '0';
+
+  // Top productos
+  const contador = {};
+  ventasValidas.forEach(v => v.items.forEach(i => {
+    contador[i.nombre] = (contador[i.nombre]||0) + i.cant;
+  }));
+  const topProds = Object.entries(contador).sort((a,b)=>b[1]-a[1]).slice(0,10);
+
+  // Ventas por categoría
+  const porCat = {};
+  ventasValidas.forEach(v => v.items.forEach(i => {
+    const p = productos.find(x=>x.id===i.prodId);
+    const cat = p?.categoria || 'OTROS';
+    porCat[cat] = (porCat[cat]||0) + i.cant*i.precio;
+  }));
+
+  const hoy = new Date().toLocaleString('es-PE',{day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});
+
+  const html = `<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8"><title>Reporte C-TRONICS · ${new Date().toISOString().slice(0,10)}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:#1f2937;padding:40px;font-size:13px;line-height:1.5}
+  .header{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #1e3a5f;padding-bottom:14px;margin-bottom:24px}
+  .logo{font-size:26px;font-weight:800;color:#1e3a5f;letter-spacing:-.5px}
+  .logo .bolt{color:#f59e0b}
+  .sub{font-size:10px;letter-spacing:2px;color:#6b7280;margin-top:2px;font-weight:600}
+  .meta{text-align:right;font-size:11px;color:#6b7280}
+  h1{font-size:20px;color:#1e3a5f;margin-bottom:4px}
+  h2{font-size:14px;color:#1e3a5f;margin:24px 0 10px;padding-bottom:6px;border-bottom:1px solid #e5e7eb;text-transform:uppercase;letter-spacing:.5px}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+  .kpi{border:1px solid #e5e7eb;border-radius:8px;padding:14px;border-left:4px solid #f59e0b}
+  .kpi.green{border-left-color:#10b981}.kpi.blue{border-left-color:#3b82f6}.kpi.red{border-left-color:#ef4444}
+  .kpi .lbl{font-size:10px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+  .kpi .val{font-size:20px;font-weight:800;color:#1f2937;margin-top:4px}
+  table{width:100%;border-collapse:collapse;margin-top:8px}
+  th{background:#1e3a5f;color:#fff;text-align:left;padding:8px 12px;font-size:11px;font-weight:600;text-transform:uppercase}
+  td{padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:12px}
+  tr:nth-child(even) td{background:#f9fafb}
+  .footer{margin-top:40px;padding-top:14px;border-top:1px solid #e5e7eb;text-align:center;font-size:10px;color:#9ca3af}
+  .bar-row{display:flex;align-items:center;gap:10px;margin-bottom:6px;font-size:11px}
+  .bar-lbl{flex:0 0 200px;font-weight:600}
+  .bar-track{flex:1;height:18px;background:#f3f4f6;border-radius:9px;overflow:hidden}
+  .bar-fill{height:100%;background:linear-gradient(90deg,#1e3a5f,#f59e0b);display:flex;align-items:center;justify-content:flex-end;padding-right:8px;color:#fff;font-weight:700;font-size:10px;border-radius:9px}
+  .signature{display:grid;grid-template-columns:1fr 1fr;gap:60px;margin-top:60px;font-size:11px}
+  .sig-line{border-top:1px solid #1f2937;padding-top:6px;text-align:center;color:#6b7280}
+  @media print {
+    body{padding:20px}
+    @page{size:A4;margin:1cm}
+    .no-print{display:none}
+  }
+  .actions{position:fixed;top:20px;right:20px;display:flex;gap:8px}
+  .actions button{padding:10px 18px;font-size:13px;font-weight:600;border:none;border-radius:6px;cursor:pointer}
+  .btn-print{background:#1e3a5f;color:#fff}
+  .btn-close{background:#e5e7eb;color:#1f2937}
+</style></head><body>
+
+<div class="actions no-print">
+  <button class="btn-print" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>
+  <button class="btn-close" onclick="window.close()">✕ Cerrar</button>
+</div>
+
+<div class="header">
+  <div>
+    <div class="logo"><span class="bolt">⚡</span> C-TRONICS</div>
+    <div class="sub">SOLUCIONES · SISTEMA DE GESTIÓN</div>
+  </div>
+  <div class="meta">
+    <strong>Reporte General</strong><br>
+    Generado: ${hoy}<br>
+    Usuario: admin
+  </div>
+</div>
+
+<h1>Reporte de Gestión Comercial</h1>
+<div style="color:#6b7280;font-size:12px;margin-bottom:20px">Análisis general de ventas, inventario y rendimiento</div>
+
+<div class="kpis">
+  <div class="kpi green"><div class="lbl">Ingresos totales</div><div class="val">S/ ${ingresos.toFixed(2)}</div></div>
+  <div class="kpi blue"><div class="lbl">Ventas realizadas</div><div class="val">${ventasValidas.length}</div></div>
+  <div class="kpi"><div class="lbl">Productos en catálogo</div><div class="val">${productos.length}</div></div>
+  <div class="kpi red"><div class="lbl">Margen ganancia</div><div class="val">${margenPct}%</div></div>
+</div>
+
+<h2>Top productos más vendidos</h2>
+<table>
+  <thead><tr><th>#</th><th>Producto</th><th>Unidades</th></tr></thead>
+  <tbody>
+    ${topProds.length===0 ? '<tr><td colspan="3" style="text-align:center;color:#9ca3af;padding:20px">Sin datos</td></tr>' :
+      topProds.map(([n,c],i)=>`<tr><td>${i+1}</td><td>${n}</td><td><strong>${c}</strong> uds</td></tr>`).join('')}
+  </tbody>
+</table>
+
+<h2>Ingresos por categoría</h2>
+<div>
+  ${Object.entries(porCat).sort((a,b)=>b[1]-a[1]).map(([cat,v])=>{
+    const max = Math.max(...Object.values(porCat));
+    return `
+      <div class="bar-row">
+        <div class="bar-lbl">${cat}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${(v/max*100).toFixed(0)}%">S/ ${v.toFixed(2)}</div></div>
+      </div>
+    `;
+  }).join('')}
+</div>
+
+<h2>Detalle de ventas (últimas 20)</h2>
+<table>
+  <thead><tr><th>#</th><th>Fecha</th><th>Cliente</th><th>Items</th><th>Total</th></tr></thead>
+  <tbody>
+    ${[...ventasValidas].reverse().slice(0,20).map(v=>`
+      <tr>
+        <td><strong>#${v.id}</strong></td>
+        <td>${v.fecha}</td>
+        <td>${v.clienteNombre}</td>
+        <td>${v.items.reduce((s,i)=>s+i.cant,0)} item(s)</td>
+        <td><strong>S/ ${v.total.toFixed(2)}</strong></td>
+      </tr>
+    `).join('')}
+  </tbody>
+</table>
+
+<h2>Inventario · Productos con stock crítico</h2>
+<table>
+  <thead><tr><th>Código</th><th>Producto</th><th>Categoría</th><th>Stock actual</th><th>Stock mínimo</th></tr></thead>
+  <tbody>
+    ${productos.filter(p=>p.stock<=p.stockMin).map(p=>`
+      <tr>
+        <td><strong>${p.codigo}</strong></td>
+        <td>${p.nombre}</td>
+        <td>${p.categoria}</td>
+        <td><strong style="color:#ef4444">${p.stock}</strong> uds</td>
+        <td>${p.stockMin} uds</td>
+      </tr>
+    `).join('') || '<tr><td colspan="5" style="text-align:center;color:#10b981;padding:14px">✅ Todos los productos con stock adecuado</td></tr>'}
+  </tbody>
+</table>
+
+<div class="signature">
+  <div class="sig-line">Responsable de ventas</div>
+  <div class="sig-line">Gerente general</div>
+</div>
+
+<div class="footer">
+  C-TRONICS SOLUCIONES · RUC: 20612345678 · Av. Los Electrónicos 456, Lima · soporte@c-tronics.pe<br>
+  Documento generado automáticamente por el Sistema de Gestión Comercial v1.1.0
+</div>
+
+<script>setTimeout(()=>window.print(), 600);<\/script>
+</body></html>`;
+
+  const w = window.open('', '_blank', 'width=900,height=1000');
+  if(!w){ toast('El navegador bloqueó la ventana del reporte. Permite ventanas emergentes para este sitio.','warn'); return; }
+  w.document.write(html);
+  w.document.close();
+  toast('Reporte generado. Usa Guardar como PDF en el diálogo de impresión.','success');
+}
+
+/* ============================================================
+   MÓDULO · ESQUEMA VISUAL DE LA BD (ER Diagram)
+   ============================================================ */
+function renderEsquema(){
+  // posiciones de cada tabla en el lienzo (x, y, ancho, alto)
+  const tablas = [
+    {n:'Usuario',      x: 40,  y: 30,  w:220, fields:['idUsuario PK','nombreUsuario','contrasena','rol','activo']},
+    {n:'Cliente',      x: 380, y: 30,  w:220, fields:['idCliente PK','dniRuc','nombres','apellidos','telefono','email','direccion','totalComprado']},
+    {n:'Categoria',    x: 720, y: 30,  w:220, fields:['idCategoria PK','nombre','descripcion']},
+    {n:'Reporte',      x: 40,  y: 280, w:220, fields:['idReporte PK','idUsuario FK','tipo','fechaInicio','fechaFin','fechaGeneracion']},
+    {n:'Venta',        x: 380, y: 280, w:220, fields:['idVenta PK','idUsuario FK','idCliente FK','fecha','subtotal','igv','total','estado']},
+    {n:'Producto',     x: 720, y: 280, w:220, fields:['idProducto PK','codigo','nombre','idCategoria FK','precioCosto','precioVenta','stock','stockMinimo']},
+    {n:'DetalleVenta', x: 380, y: 560, w:220, fields:['idDetalle PK','idVenta FK','idProducto FK','cantidad','precioUnitario','subtotal']},
+    {n:'Inventario',   x: 720, y: 560, w:220, fields:['idMovimiento PK','idProducto FK','fecha','tipoMovimiento','cantidad','motivo']},
+  ];
+  const pos = {};
+  tablas.forEach(t=>{
+    const h = 38 + t.fields.length*22;
+    pos[t.n] = {x:t.x, y:t.y, w:t.w, h, cx:t.x+t.w/2, cy:t.y+h/2};
+  });
+
+  // relaciones (origen → destino, etiqueta, tipo)
+  const rels = [
+    ['Usuario','Venta','1 : N · registra','solid'],
+    ['Cliente','Venta','1 : N · realiza','solid'],
+    ['Venta','DetalleVenta','1 : N · contiene','solid'],
+    ['Producto','DetalleVenta','1 : N · referencia','solid'],
+    ['Categoria','Producto','1 : N · agrupa','solid'],
+    ['Producto','Inventario','1 : N · controla','solid'],
+    ['Usuario','Reporte','1 : N · genera','solid'],
+    ['Reporte','Venta','consulta','dashed'],
+    ['Reporte','Producto','consulta','dashed'],
+  ];
+
+  // Función para calcular punto en el borde del rectángulo
+  function edgePoint(from, to){
+    const dx = to.cx - from.cx;
+    const dy = to.cy - from.cy;
+    const ang = Math.atan2(dy, dx);
+    const w2 = from.w/2, h2 = from.h/2;
+    const tx = Math.abs(Math.cos(ang)) > 1e-9 ? w2/Math.abs(Math.cos(ang)) : Infinity;
+    const ty = Math.abs(Math.sin(ang)) > 1e-9 ? h2/Math.abs(Math.sin(ang)) : Infinity;
+    const t = Math.min(tx, ty);
+    return {x: from.cx + Math.cos(ang)*t, y: from.cy + Math.sin(ang)*t};
+  }
+
+  const lines = rels.map(([a,b,label,style])=>{
+    const p1 = edgePoint(pos[a], pos[b]);
+    const p2 = edgePoint(pos[b], pos[a]);
+    const mx = (p1.x + p2.x)/2;
+    const my = (p1.y + p2.y)/2;
+    const dash = style==='dashed' ? 'stroke-dasharray="6,4"' : '';
+    return `
+      <line x1="${p1.x}" y1="${p1.y}" x2="${p2.x}" y2="${p2.y}"
+            stroke="#1e3a5f" stroke-width="1.8" ${dash} marker-end="url(#arrow)"/>
+      <rect x="${mx-50}" y="${my-9}" width="100" height="18" rx="9" fill="#fff" stroke="#1e3a5f" stroke-width="0.8"/>
+      <text x="${mx}" y="${my+4}" text-anchor="middle" font-size="10" font-weight="600" fill="#1e3a5f">${label}</text>
+    `;
+  }).join('');
+
+  const tableBoxes = tablas.map(t=>{
+    const h = 38 + t.fields.length*22;
+    return `
+      <g>
+        <rect x="${t.x}" y="${t.y}" width="${t.w}" height="${h}" rx="8"
+              fill="#fff" stroke="#1e3a5f" stroke-width="2" filter="url(#shadow)"/>
+        <rect x="${t.x}" y="${t.y}" width="${t.w}" height="32" rx="8" fill="#1e3a5f"/>
+        <rect x="${t.x}" y="${t.y+16}" width="${t.w}" height="16" fill="#1e3a5f"/>
+        <text x="${t.x+t.w/2}" y="${t.y+21}" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">${t.n}</text>
+        ${t.fields.map((f,i)=>{
+          const isPk = f.includes('PK');
+          const isFk = f.includes('FK');
+          const color = isPk ? '#f59e0b' : (isFk ? '#3b82f6' : '#1f2937');
+          return `<text x="${t.x+14}" y="${t.y+52+i*22}" font-size="12" fill="${color}" font-weight="${isPk||isFk?'700':'500'}">${f}</text>`;
+        }).join('')}
+      </g>
+    `;
+  }).join('');
+
+  $('#content').innerHTML = `
+    <div class="page-header">
+      <div>
+        <div class="page-title">Diagrama Entidad-Relación · SQLite</div>
+        <div class="page-sub">8 tablas · 9 relaciones · motor SQLite (sql.js · WebAssembly)</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <span class="badge badge-amber" style="padding:6px 12px">🔑 PK</span>
+        <span class="badge badge-info" style="padding:6px 12px">🔗 FK</span>
+        <span class="badge badge-navy" style="padding:6px 12px">— sólida = composición</span>
+        <span class="badge badge-success" style="padding:6px 12px">- - - punteada = dependencia</span>
+      </div>
+    </div>
+
+    <div class="card" style="overflow:auto;padding:10px">
+      <svg viewBox="0 0 980 800" style="width:100%;min-width:980px;height:auto;display:block">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+            <path d="M0,0 L10,5 L0,10 z" fill="#1e3a5f"/>
+          </marker>
+          <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+            <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.15"/>
+          </filter>
+        </defs>
+        ${lines}
+        ${tableBoxes}
+      </svg>
+    </div>
+
+    <div class="card" style="margin-top:18px">
+      <h4 style="font-size:14px;font-weight:700;margin-bottom:10px">📋 Resumen de tablas (datos actuales)</h4>
+      <table>
+        <thead><tr><th>Tabla</th><th>Registros</th><th>Descripción</th><th></th></tr></thead>
+        <tbody>
+          ${[
+            ['Usuario', usuarios.length, 'Operadores del sistema'],
+            ['Cliente', clientes.length, 'Personas o empresas registradas'],
+            ['Categoria', categorias.length, 'Familias de productos (Smartphones, Audio, etc.)'],
+            ['Producto', productos.length, 'Catálogo de productos a la venta'],
+            ['Venta', ventas.length, 'Cabecera de cada transacción de venta'],
+            ['DetalleVenta', ventas.reduce((s,v)=>s+v.items.length,0), 'Líneas de productos por cada venta'],
+            ['Inventario', inventarioMovs.length, 'Movimientos de stock (entradas/salidas)'],
+            ['Reporte', reportes.length, 'Registro de reportes generados'],
+          ].map(([t,n,d])=>`
+            <tr>
+              <td><strong>${t}</strong></td>
+              <td><span class="badge badge-info">${n} filas</span></td>
+              <td>${d}</td>
+              <td><button class="btn btn-ghost btn-sm" onclick="navTo('tablas');setTimeout(()=>verTabla('${t}'),50)">Ver datos →</button></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+/* ============================================================
+   MÓDULO · VISOR DE TABLAS (navega los datos crudos por tabla)
+   ============================================================ */
+const TABLAS_INFO = {
+  Usuario:      {desc:'Operadores del sistema',                    get:()=>usuarios,       cols:['id','nombreUsuario','contrasena','rol','activo']},
+  Cliente:      {desc:'Personas o empresas registradas',           get:()=>clientes,       cols:['id','doc','nombre','tel','email','direccion','totalComprado']},
+  Categoria:    {desc:'Familias de productos',                     get:()=>categorias,     cols:['id','nombre','descripcion']},
+  Producto:     {desc:'Catálogo de productos a la venta',          get:()=>productos,      cols:['id','codigo','nombre','categoria','costo','precio','stock','stockMin']},
+  Venta:        {desc:'Cabecera de cada transacción',              get:()=>ventas.map(v=>({id:v.id, fecha:v.fecha, idCliente:v.clienteId, cliente:v.clienteNombre, subtotal:v.subtotal?.toFixed(2), igv:v.igv?.toFixed(2), total:v.total, estado:v.estado})), cols:['id','fecha','idCliente','cliente','subtotal','igv','total','estado']},
+  DetalleVenta: {desc:'Líneas de productos por venta',             get:()=>ventas.flatMap(v=>v.items.map(i=>({idDetalle:i.idDetalle, idVenta:v.id, idProducto:i.prodId, producto:i.nombre, cantidad:i.cant, precioUnitario:i.precio, subtotal:(i.cant*i.precio).toFixed(2)}))), cols:['idDetalle','idVenta','idProducto','producto','cantidad','precioUnitario','subtotal']},
+  Inventario:   {desc:'Movimientos de stock (entradas/salidas)',   get:()=>inventarioMovs.map(m=>({...m, producto: productos.find(p=>p.id===m.idProducto)?.nombre||'?'})), cols:['id','fecha','idProducto','producto','tipoMovimiento','cantidad','motivo']},
+  Reporte:      {desc:'Registro de reportes generados',            get:()=>reportes,       cols:['id','idUsuario','tipo','fechaInicio','fechaFin','fechaGeneracion']},
+};
+
+let tablaActual = 'Producto';
+
+function renderTablas(){
+  $('#content').innerHTML = `
+    <div class="page-header">
+      <div>
+        <div class="page-title">Visor de Tablas</div>
+        <div class="page-sub">Explora los datos crudos de cada tabla del modelo de datos</div>
+      </div>
+      <button class="btn btn-navy" onclick="exportarBD()">💾 Crear respaldo</button>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px">
+      ${Object.keys(TABLAS_INFO).map(t=>`
+        <button class="btn ${t===tablaActual?'btn-navy':'btn-ghost'}" onclick="verTabla('${t}')">
+          ${t} <span style="opacity:.7;margin-left:6px">${TABLAS_INFO[t].get().length}</span>
+        </button>
+      `).join('')}
+    </div>
+
+    <div id="tablaContent"></div>
+  `;
+  verTabla(tablaActual);
+}
+
+function verTabla(nombre){
+  tablaActual = nombre;
+  const info = TABLAS_INFO[nombre];
+  const rows = info.get();
+  // resaltar el botón activo
+  $$('#content > div button.btn').forEach(b=>{
+    if(b.textContent.trim().startsWith(nombre)) b.className = 'btn btn-navy';
+    else if(Object.keys(TABLAS_INFO).some(t=>b.textContent.trim().startsWith(t))) b.className = 'btn btn-ghost';
+  });
+
+  const cols = info.cols;
+  const html = `
+    <div class="card" style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <h3 style="font-size:18px;font-weight:700">Tabla: ${nombre}</h3>
+          <div style="font-size:13px;color:var(--text-muted);margin-top:2px">${info.desc} · <strong>${rows.length}</strong> registro(s)</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${cols.map(c=>{
+            const isPk = c==='id' || c.startsWith('id') && c.length<=15 && c===c.replace(/[A-Z].*/,'') ? false : c==='id';
+            const isFk = c.startsWith('id') && c !== 'id';
+            return `<span class="badge ${c==='id'?'badge-amber':isFk?'badge-info':'badge-navy'}" style="font-size:10px">${c}${c==='id'?' 🔑':isFk?' 🔗':''}</span>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead>
+        <tbody>
+          ${rows.length===0
+            ? `<tr><td colspan="${cols.length}" class="empty">Sin registros</td></tr>`
+            : rows.map(r=>`<tr>${cols.map(c=>{
+                const v = r[c];
+                if(v===null||v===undefined||v==='') return `<td><em style="color:#94a3b8">—</em></td>`;
+                return `<td>${esc(String(v))}</td>`;
+              }).join('')}</tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  // Si renderTablas no se ha llamado, llamarlo primero
+  if(!$('#tablaContent')){ renderTablas(); return; }
+  $('#tablaContent').innerHTML = html;
+}
+
+/* ============================================================
+   MÓDULO · BITÁCORA DE ACTIVIDAD
+   ============================================================ */
+let filtroBitacoraTxt = '';
+
+function renderBitacora(){
+  $('#content').innerHTML = `
+    <div class="page-header">
+      <div>
+        <div class="page-title">Bitácora de Actividad</div>
+        <div class="page-sub">${bitacora.length} evento(s) registrados · trazabilidad del sistema</div>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <div class="search">
+        <input type="text" id="bitSearch" placeholder="Buscar por usuario, tipo o descripción..." value="${esc(filtroBitacoraTxt)}" oninput="filtroBitacoraTxt=this.value;renderBitacoraTabla()">
+      </div>
+    </div>
+
+    <div id="bitTablaWrap"></div>
+  `;
+  renderBitacoraTabla();
+}
+
+function renderBitacoraTabla(){
+  const txt = filtroBitacoraTxt.toLowerCase();
+  const tipoBadge = {
+    'Sesión':'badge-info', 'Venta':'badge-success', 'Anulación':'badge-danger',
+    'Producto':'badge-amber', 'Categoría':'badge-purple', 'Seguridad':'badge-navy'
+  };
+  // más recientes primero
+  const list = [...bitacora].reverse().filter(e =>
+    !txt ||
+    (e.usuario||'').toLowerCase().includes(txt) ||
+    (e.tipo||'').toLowerCase().includes(txt) ||
+    (e.descripcion||'').toLowerCase().includes(txt)
+  );
+
+  $('#bitTablaWrap').innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Fecha y hora</th><th>Usuario</th><th>Tipo</th><th>Descripción</th></tr>
+        </thead>
+        <tbody>
+          ${list.length===0 ? `<tr><td colspan="5" class="empty"><div class="em-ico">🧾</div>No hay eventos registrados</td></tr>` :
+          list.map(e=>`
+            <tr>
+              <td><strong>#${String(e.id).padStart(4,'0')}</strong></td>
+              <td>${esc(e.fecha)}</td>
+              <td><strong>${esc(e.usuario)}</strong></td>
+              <td><span class="badge ${tipoBadge[e.tipo]||'badge-info'}">${esc(e.tipo)}</span></td>
+              <td>${esc(e.descripcion)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
 }
 
 /* ============================================================
@@ -1642,6 +2411,12 @@ function renderConfig(){
           </div>
         </div>
 
+        <h4 style="font-size:14px;font-weight:700;margin:18px 0 14px">🔒 Seguridad</h4>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="btn btn-navy" onclick="openCambiarPassPanel()">🔑 Cambiar contraseña</button>
+          <button class="btn btn-ghost" onclick="restablecerPass()">🔄 Restablecer contraseña</button>
+        </div>
+
         <h4 style="font-size:14px;font-weight:700;margin:18px 0 14px">🎨 Apariencia</h4>
         <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;border:1px solid var(--border);border-radius:8px;margin-bottom:18px">
           <div>
@@ -1658,16 +2433,82 @@ function renderConfig(){
 
         <h4 style="font-size:14px;font-weight:700;margin:18px 0 14px">ℹ️ Sistema</h4>
         <div style="background:#f9fafb;padding:14px;border-radius:8px;font-size:13px;line-height:1.8">
-          <div><strong>Versión:</strong> 1.0.0</div>
+          <div><strong>Versión:</strong> 1.1.0</div>
           <div><strong>Tipo:</strong> Sistema local (sin conexión)</div>
-          <div><strong>Última actualización:</strong> 22 de Mayo 2026</div>
+          <div><strong>Última actualización:</strong> 16 de Junio 2026</div>
           <div><strong>Soporte:</strong> soporte@c-tronics.pe</div>
         </div>
 
-        <button class="btn btn-danger" style="width:100%;margin-top:18px" onclick="logout()">⏻ Cerrar sesión</button>
+        <h4 style="font-size:14px;font-weight:700;margin:18px 0 10px">📝 Registro de cambios · v1.1.0</h4>
+        <div style="background:#f9fafb;padding:14px;border-radius:8px;font-size:13px;line-height:1.7">
+          <ul style="margin:0;padding-left:18px;color:var(--text)">
+            <li><strong>Anulación de ventas</strong> con devolución de stock (solo Administrador).</li>
+            <li><strong>Gestión de categorías</strong> (crear, editar y eliminar) persistida en localStorage.</li>
+            <li><strong>Cambio y restablecimiento de contraseña</strong> del usuario.</li>
+            <li><strong>Bitácora de actividad</strong> para trazabilidad de los eventos del sistema.</li>
+          </ul>
+        </div>
+
+        <h4 style="font-size:14px;font-weight:700;margin:18px 0 10px">💾 Base de datos</h4>
+        <div style="background:#f9fafb;padding:12px;border-radius:8px;font-size:12px;color:var(--text-muted);margin-bottom:10px;line-height:1.6">
+          <strong>Modelo:</strong> Relacional · 8 tablas según diagrama<br>
+          <strong>Persistencia:</strong> localStorage del navegador<br>
+          <strong>Productos:</strong> ${productos.length} ·
+          <strong>Clientes:</strong> ${clientes.length} ·
+          <strong>Ventas:</strong> ${ventas.length} ·
+          <strong>Movs. Inventario:</strong> ${inventarioMovs.length}
+        </div>
+
+        <button class="btn btn-navy" style="width:100%;margin-top:4px" onclick="exportarBD()">💾 Crear respaldo</button>
+        <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="document.getElementById('importInput').click()">📤 Restaurar respaldo</button>
+        <input type="file" id="importInput" accept=".json" style="display:none" onchange="importarBD(event)">
+        <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="resetDB()">🔄 Reiniciar base de datos a datos seed</button>
+        <button class="btn btn-danger" style="width:100%;margin-top:8px" onclick="logout()">⏻ Cerrar sesión</button>
       </div>
     </div>
   `;
+}
+
+function resetDB(){
+  if(!confirm('¿Borrar la base de datos actual y restaurar los datos de demo? Esta acción no se puede deshacer.')) return;
+  localStorage.removeItem(DB_KEY);
+  toast('Base de datos reiniciada. Recargando...','info');
+  setTimeout(()=>location.reload(), 800);
+}
+
+function exportarBD(){
+  const data = {productos, clientes, ventas, usuarios, categorias, inventarioMovs, reportes, bitacora, nextId, exportadoEl: new Date().toISOString()};
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `ctronics_respaldo_${new Date().toISOString().slice(0,19).replace('T','_').replace(/:/g,'-')}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('Respaldo descargado correctamente','success');
+}
+
+async function importarBD(ev){
+  const file = ev.target.files[0];
+  if(!file) return;
+  if(!confirm(`¿Cargar "${file.name}" y reemplazar la base de datos actual?`)) return;
+  try{
+    const text = await file.text();
+    const d = JSON.parse(text);
+    if(!d.productos || !d.clientes) throw new Error('Archivo inválido');
+    productos = d.productos; clientes = d.clientes; ventas = d.ventas || [];
+    usuarios = d.usuarios || []; categorias = d.categorias || [];
+    inventarioMovs = d.inventarioMovs || []; reportes = d.reportes || [];
+    bitacora = d.bitacora || [];
+    nextId = d.nextId || nextId;
+    saveAll();
+    toast('Base de datos restaurada. Recargando...','success');
+    setTimeout(()=>location.reload(), 800);
+  } catch(e){
+    toast('No se pudo cargar el archivo: ' + e.message, 'error');
+  }
 }
 
 function guardarEmpresa(){
@@ -1681,6 +2522,57 @@ function guardarEmpresa(){
 function toggleDark(){
   document.body.classList.toggle('dark');
   renderConfig();
+}
+
+/* ---------- Seguridad · contraseña del usuario ---------- */
+function openCambiarPassPanel(){
+  $('#panelTitle').textContent = 'Cambiar contraseña';
+  $('#panelBody').innerHTML = `
+    <div class="form-group">
+      <label>Contraseña actual *</label>
+      <input type="password" id="fPassActual" placeholder="••••••••">
+    </div>
+    <div class="form-group">
+      <label>Nueva contraseña *</label>
+      <input type="password" id="fPassNueva" placeholder="Mínimo 6 caracteres">
+    </div>
+    <div class="form-group">
+      <label>Confirmar nueva contraseña *</label>
+      <input type="password" id="fPassConfirm" placeholder="Repite la nueva contraseña">
+    </div>
+  `;
+  $('#panelSaveBtn').textContent = 'Actualizar contraseña';
+  $('#panelSaveBtn').onclick = guardarCambioPass;
+  openPanel();
+}
+
+function guardarCambioPass(){
+  if(!usuarioActual){ toast('Sesión no válida','error'); return; }
+  const actual = $('#fPassActual').value;
+  const nueva  = $('#fPassNueva').value;
+  const conf   = $('#fPassConfirm').value;
+  if(actual !== usuarioActual.contrasena){ toast('La contraseña actual no es correcta','error'); return; }
+  if(nueva.length < 6){ toast('La nueva contraseña debe tener al menos 6 caracteres','error'); return; }
+  if(nueva !== conf){ toast('La confirmación no coincide','error'); return; }
+  if(nueva === actual){ toast('La nueva contraseña debe ser distinta a la actual','warn'); return; }
+
+  usuarioActual.contrasena = nueva;
+  usuarioActual.debeCambiarContrasena = false;
+  saveAll();
+  logActividad('Seguridad', 'Cambio de contraseña');
+  closePanel();
+  toast('Contraseña actualizada correctamente','success');
+}
+
+function restablecerPass(){
+  if(!usuarioActual){ toast('Sesión no válida','error'); return; }
+  if(!confirm('¿Restablecer la contraseña a la predeterminada (admin123)? El sistema te obligará a definir una nueva en el próximo inicio de sesión.')) return;
+
+  usuarioActual.contrasena = 'admin123';
+  usuarioActual.debeCambiarContrasena = true;
+  saveAll();
+  logActividad('Seguridad', 'Restablecimiento de contraseña');
+  toast('Contraseña restablecida. Deberás cambiarla al volver a iniciar sesión.','info');
 }
 
 /* ============================================================
@@ -1698,9 +2590,10 @@ function closePanel(){
 }
 
 /* ============================================================
-   INIT
+   INIT · Carga inicial instantánea desde localStorage
    ============================================================ */
 setDate();
+loadAllData();
 </script>
 </body>
 </html>

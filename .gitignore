@@ -1,0 +1,23 @@
+# ====== Sistema operativo ======
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ====== Editores / IDE ======
+.vscode/
+.idea/
+*.swp
+*~
+
+# ====== Node (por si se agregan dependencias en el futuro) ======
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# ====== Respaldos locales de la base de datos exportada ======
+ctronics_respaldo_*.json
+ctronics_*.json
+
+# ====== Logs y temporales ======
+*.log
+*.tmp
