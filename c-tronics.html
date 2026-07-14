@@ -17,6 +17,7 @@
   --amber-dark:#d97706;
   --bg:#f4f6f9;
   --card:#ffffff;
+  --soft:#f9fafb;
   --text:#1f2937;
   --text-muted:#6b7280;
   --border:#e5e7eb;
@@ -500,16 +501,21 @@ tbody tr:last-child td{border-bottom:none}
 
 /* Theme dark (opcional) */
 body.dark{
-  --bg:#0f172a;--card:#1e293b;--text:#f1f5f9;--text-muted:#94a3b8;--border:#334155;
+  --bg:#0f172a;--card:#1e293b;--soft:#0f172a;--text:#f1f5f9;--text-muted:#94a3b8;--border:#334155;
 }
 body.dark .topbar,body.dark .table-wrap,body.dark .kpi,body.dark .card,
-body.dark .report-card,body.dark .pos-product,body.dark .cart{background:#1e293b}
+body.dark .report-card,body.dark .pos-product,body.dark .cart,
+body.dark .side-panel,body.dark .toast{background:#1e293b}
 body.dark thead{background:#0f172a}
 body.dark .search input,body.dark .select,body.dark .form-group input,
-body.dark .form-group select{background:#0f172a;color:#f1f5f9;border-color:#334155}
+body.dark .form-group select,body.dark .form-group textarea{background:#0f172a;color:#f1f5f9;border-color:#334155}
 body.dark .btn-ghost{background:#334155;color:#f1f5f9}
 body.dark .cart-totals,body.dark .side-panel-footer{background:#0f172a}
 body.dark tbody tr:hover{background:#283548}
+body.dark .icon-btn{background:#334155;color:#cbd5e1}
+body.dark .icon-btn:hover{background:var(--amber);color:#fff}
+body.dark .cart-item .ci-qty button{background:#334155;color:#f1f5f9}
+body.dark .h-bar .track{background:#334155}
 
 /* Responsive */
 @media (max-width:1100px){
@@ -1523,7 +1529,7 @@ function renderVentas(){
     </div>
 
     <div style="margin-top:28px">
-      <div class="section-title" style="margin-bottom:12px">Historial de ventas del día</div>
+      <div class="section-title" style="margin-bottom:12px">Historial de ventas</div>
       <div class="table-wrap">
         <table>
           <thead><tr><th>#</th><th>Fecha</th><th>Cliente</th><th>Items</th><th>Total</th><th>Estado</th><th>Acciones</th></tr></thead>
@@ -1835,7 +1841,7 @@ function verHistorialCliente(id){
   const historial = ventas.filter(v=>v.clienteId===id);
   $('#panelTitle').textContent = `Historial · ${c.nombre}`;
   $('#panelBody').innerHTML = `
-    <div style="background:#f9fafb;padding:14px;border-radius:8px;margin-bottom:18px">
+    <div style="background:var(--soft);padding:14px;border-radius:8px;margin-bottom:18px">
       <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;font-weight:600">Total comprado histórico</div>
       <div style="font-size:24px;font-weight:800;color:var(--success);margin-top:4px">${money(c.totalComprado)}</div>
       <div style="font-size:12px;color:var(--text-muted);margin-top:4px">${esc(c.doc)} · ${esc(c.email)}</div>
@@ -2229,7 +2235,7 @@ function renderConfig(){
 
       <div class="card">
         <h4 style="font-size:14px;font-weight:700;margin-bottom:14px">👤 Usuario actual</h4>
-        <div style="display:flex;align-items:center;gap:14px;padding:14px;background:#f9fafb;border-radius:8px;margin-bottom:18px">
+        <div style="display:flex;align-items:center;gap:14px;padding:14px;background:var(--soft);border-radius:8px;margin-bottom:18px">
           <div class="avatar" style="width:60px;height:60px;font-size:22px">A</div>
           <div>
             <div style="font-weight:700;font-size:16px">admin</div>
@@ -2259,7 +2265,7 @@ function renderConfig(){
         </div>
 
         <h4 style="font-size:14px;font-weight:700;margin:18px 0 14px">ℹ️ Sistema</h4>
-        <div style="background:#f9fafb;padding:14px;border-radius:8px;font-size:13px;line-height:1.8">
+        <div style="background:var(--soft);padding:14px;border-radius:8px;font-size:13px;line-height:1.8">
           <div><strong>Versión:</strong> 1.1.0</div>
           <div><strong>Tipo:</strong> Sistema local (sin conexión)</div>
           <div><strong>Última actualización:</strong> 16 de Junio 2026</div>
@@ -2267,7 +2273,7 @@ function renderConfig(){
         </div>
 
         <h4 style="font-size:14px;font-weight:700;margin:18px 0 10px">📝 Registro de cambios · v1.1.0</h4>
-        <div style="background:#f9fafb;padding:14px;border-radius:8px;font-size:13px;line-height:1.7">
+        <div style="background:var(--soft);padding:14px;border-radius:8px;font-size:13px;line-height:1.7">
           <ul style="margin:0;padding-left:18px;color:var(--text)">
             <li><strong>Anulación de ventas</strong> con devolución de stock (solo Administrador).</li>
             <li><strong>Gestión de categorías</strong> (crear, editar y eliminar) persistida en localStorage.</li>
@@ -2278,7 +2284,7 @@ function renderConfig(){
         </div>
 
         <h4 style="font-size:14px;font-weight:700;margin:18px 0 10px">💾 Base de datos</h4>
-        <div style="background:#f9fafb;padding:12px;border-radius:8px;font-size:12px;color:var(--text-muted);margin-bottom:10px;line-height:1.6">
+        <div style="background:var(--soft);padding:12px;border-radius:8px;font-size:12px;color:var(--text-muted);margin-bottom:10px;line-height:1.6">
           <strong>Almacenamiento:</strong> Local en el navegador (localStorage)<br>
           <strong>Productos:</strong> ${productos.length} ·
           <strong>Clientes:</strong> ${clientes.length} ·
@@ -2348,6 +2354,7 @@ function guardarEmpresa(){
 
 function toggleDark(){
   document.body.classList.toggle('dark');
+  localStorage.setItem('ctronics_dark', document.body.classList.contains('dark') ? '1' : '0');
   renderConfig();
 }
 
@@ -2419,6 +2426,7 @@ function closePanel(){
 /* ============================================================
    INIT · Carga inicial instantánea desde localStorage
    ============================================================ */
+if(localStorage.getItem('ctronics_dark') === '1') document.body.classList.add('dark');
 setDate();
 loadAllData();
 </script>
