@@ -731,57 +731,99 @@ function seedData(){
   ];
 
   productos = [
-    {id:1, codigo:'E-001', nombre:'Samsung Galaxy A15',         categoria:'SMARTPHONES', costo:480, precio:689, stock:24, stockMin:5},
-    {id:2, codigo:'E-002', nombre:'Audífonos Bluetooth JBL',    categoria:'ACCESORIOS',  costo:60,  precio:120, stock:45, stockMin:10},
-    {id:3, codigo:'E-003', nombre:'Teclado Mecánico RGB',       categoria:'CÓMPUTO',     costo:95,  precio:180, stock:5,  stockMin:8},
-    {id:4, codigo:'E-004', nombre:'Cargador 65W USB-C',         categoria:'ACCESORIOS',  costo:35,  precio:89,  stock:2,  stockMin:10},
-    {id:5, codigo:'E-005', nombre:'Mouse Inalámbrico Logitech', categoria:'CÓMPUTO',     costo:50,  precio:95,  stock:18, stockMin:6},
-    {id:6, codigo:'E-006', nombre:'iPhone 13 128GB',            categoria:'SMARTPHONES', costo:2200,precio:2899,stock:8,  stockMin:3},
-    {id:7, codigo:'E-007', nombre:'Parlante JBL Go 3',          categoria:'AUDIO',       costo:120, precio:199, stock:12, stockMin:5},
-    {id:8, codigo:'E-008', nombre:'Cable USB-C 1m',             categoria:'ACCESORIOS',  costo:8,   precio:20,  stock:60, stockMin:15},
-    {id:9, codigo:'E-009', nombre:'Smart TV 43" 4K',            categoria:'VIDEO',       costo:1100,precio:1499,stock:6,  stockMin:2},
-    {id:10,codigo:'E-010', nombre:'Power Bank 20000mAh',        categoria:'ACCESORIOS',  costo:55,  precio:120, stock:14, stockMin:5},
+    {id:1,  codigo:'E-001', nombre:'Samsung Galaxy A15',             categoria:'SMARTPHONES', costo:480,  precio:689,  stock:18, stockMin:5},
+    {id:2,  codigo:'E-002', nombre:'iPhone 13 128GB',                categoria:'SMARTPHONES', costo:2200, precio:2899, stock:6,  stockMin:3},
+    {id:3,  codigo:'E-003', nombre:'Xiaomi Redmi Note 13',           categoria:'SMARTPHONES', costo:520,  precio:749,  stock:3,  stockMin:5},
+    {id:4,  codigo:'E-004', nombre:'Motorola Moto G54',              categoria:'SMARTPHONES', costo:430,  precio:629,  stock:10, stockMin:4},
+    {id:5,  codigo:'E-005', nombre:'Laptop Lenovo IdeaPad 3 15"',    categoria:'CÓMPUTO',     costo:1450, precio:1999, stock:7,  stockMin:3},
+    {id:6,  codigo:'E-006', nombre:'Teclado Mecánico Redragon RGB',  categoria:'CÓMPUTO',     costo:95,   precio:179,  stock:4,  stockMin:8},
+    {id:7,  codigo:'E-007', nombre:'Mouse Inalámbrico Logitech M170',categoria:'CÓMPUTO',     costo:25,   precio:55,   stock:30, stockMin:10},
+    {id:8,  codigo:'E-008', nombre:'Monitor LG 24" Full HD',         categoria:'CÓMPUTO',     costo:380,  precio:549,  stock:9,  stockMin:3},
+    {id:9,  codigo:'E-009', nombre:'Parlante JBL Go 3',              categoria:'AUDIO',       costo:120,  precio:199,  stock:15, stockMin:5},
+    {id:10, codigo:'E-010', nombre:'Audífonos Sony WH-CH520',        categoria:'AUDIO',       costo:150,  precio:249,  stock:2,  stockMin:6},
+    {id:11, codigo:'E-011', nombre:'Micrófono HyperX SoloCast',      categoria:'AUDIO',       costo:190,  precio:299,  stock:8,  stockMin:3},
+    {id:12, codigo:'E-012', nombre:'Cargador 65W USB-C GaN',         categoria:'ACCESORIOS',  costo:35,   precio:89,   stock:40, stockMin:12},
+    {id:13, codigo:'E-013', nombre:'Cable USB-C 1m',                 categoria:'ACCESORIOS',  costo:8,    precio:20,   stock:5,  stockMin:15},
+    {id:14, codigo:'E-014', nombre:'Power Bank 20000mAh',            categoria:'ACCESORIOS',  costo:55,   precio:120,  stock:22, stockMin:6},
+    {id:15, codigo:'E-015', nombre:'Smart TV Samsung 43" 4K',        categoria:'VIDEO',       costo:1100, precio:1499, stock:5,  stockMin:2},
   ];
 
   clientes = [
-    {id:1, nombre:'María Quispe Huamán',   doc:'45678912',    tel:'987654321', email:'maria.q@gmail.com',      direccion:'Av. Brasil 123',         totalComprado:1245.50},
-    {id:2, nombre:'José García Vargas',    doc:'12345678',    tel:'956123456', email:'jose.garcia@hotmail.com',direccion:'Jr. Cusco 456',          totalComprado:580.00},
-    {id:3, nombre:'Tienda El Sol SAC',     doc:'20512345678', tel:'014567890', email:'ventas@elsol.com.pe',    direccion:'Av. Wilson 789',         totalComprado:8450.00},
-    {id:4, nombre:'Carlos Mendoza Ríos',   doc:'78945612',    tel:'998877665', email:'cmendoza@gmail.com',     direccion:'Calle Las Flores 321',   totalComprado:320.00},
-    {id:5, nombre:'Ana Lucía Torres',      doc:'56789123',    tel:'987112233', email:'ana.torres@yahoo.es',    direccion:'Av. Arequipa 1500',      totalComprado:1899.00},
-    {id:6, nombre:'Distribuidora LR EIRL', doc:'20587634521', tel:'016654321', email:'compras@lr.pe',          direccion:'Av. Argentina 200',      totalComprado:5230.00},
-    {id:7, nombre:'Pedro Salazar Aliaga',  doc:'42315678',    tel:'945678901', email:'pedrosalazar@gmail.com', direccion:'Jr. Junín 88',           totalComprado:189.00},
-    {id:8, nombre:'Rosa Fernández Cruz',   doc:'67891234',    tel:'923456789', email:'rosaf@outlook.com',      direccion:'Av. La Marina 999',      totalComprado:760.50},
+    {id:1,  nombre:'María Quispe Huamán',       doc:'45678912',    tel:'987654321', email:'maria.quispe@gmail.com',     direccion:'Av. Brasil 1234, Jesús María',     totalComprado:0},
+    {id:2,  nombre:'José García Vargas',        doc:'41235678',    tel:'956123456', email:'jose.garcia@hotmail.com',    direccion:'Jr. Cusco 456, Cercado de Lima',   totalComprado:0},
+    {id:3,  nombre:'Comercial El Sol S.A.C.',   doc:'20512345678', tel:'014567890', email:'ventas@elsol.com.pe',        direccion:'Av. Wilson 789, Cercado de Lima',  totalComprado:0},
+    {id:4,  nombre:'Carlos Mendoza Ríos',       doc:'70894561',    tel:'998877665', email:'carlos.mendoza@gmail.com',   direccion:'Calle Las Flores 321, San Miguel', totalComprado:0},
+    {id:5,  nombre:'Ana Lucía Torres Palomino', doc:'44567891',    tel:'987112233', email:'ana.torres@yahoo.es',        direccion:'Av. Arequipa 1500, Lince',         totalComprado:0},
+    {id:6,  nombre:'Distribuidora LR E.I.R.L.', doc:'20587634521', tel:'016654321', email:'compras@lrdistribuidora.pe', direccion:'Av. Argentina 200, Callao',        totalComprado:0},
+    {id:7,  nombre:'Pedro Salazar Aliaga',      doc:'42315678',    tel:'945678901', email:'pedro.salazar@gmail.com',    direccion:'Jr. Junín 88, Barranco',           totalComprado:0},
+    {id:8,  nombre:'Rosa Fernández Cruz',       doc:'43219876',    tel:'923456789', email:'rosa.fernandez@outlook.com', direccion:'Av. La Marina 999, San Miguel',    totalComprado:0},
+    {id:9,  nombre:'Luis Ramírez Chávez',       doc:'46789012',    tel:'976543210', email:'luis.ramirez@gmail.com',     direccion:'Av. Túpac Amaru 450, Comas',       totalComprado:0},
+    {id:10, nombre:'Inversiones Andina S.A.C.', doc:'20609988776', tel:'013344556', email:'admin@inversionesandina.pe',direccion:'Av. Javier Prado 3200, San Borja', totalComprado:0},
   ];
 
-  const today = new Date().toISOString().slice(0,10);
+  // Ventas de ejemplo repartidas en los últimos 15 días (de más antigua a más reciente).
+  // off = días atrás; cada ítem toma su precio del catálogo para mantener la coherencia.
+  const pad2 = n => String(n).padStart(2,'0');
+  const fechaHace = (dias, hora) => {
+    const d = new Date();
+    d.setHours(0,0,0,0);
+    d.setDate(d.getDate() - dias);
+    return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())} ${hora}`;
+  };
+
   const ventasSeed = [
-    {cliId:1, hora:'09:14', items:[{cod:'E-002',cant:1,precio:120}]},
-    {cliId:2, hora:'10:32', items:[{cod:'E-001',cant:1,precio:689}]},
-    {cliId:4, hora:'11:48', items:[{cod:'E-004',cant:2,precio:89},{cod:'E-008',cant:1,precio:20}]},
-    {cliId:5, hora:'13:05', items:[{cod:'E-003',cant:1,precio:180},{cod:'E-005',cant:1,precio:95}]},
-    {cliId:7, hora:'14:22', items:[{cod:'E-007',cant:1,precio:199}]},
+    {off:14, hora:'09:12', cli:1,  items:[['E-013',3],['E-012',1]]},
+    {off:14, hora:'16:40', cli:3,  items:[['E-005',2],['E-007',2]]},
+    {off:13, hora:'10:05', cli:5,  items:[['E-010',1],['E-011',1]]},
+    {off:13, hora:'15:22', cli:7,  items:[['E-009',1]]},
+    {off:12, hora:'09:48', cli:2,  items:[['E-001',1]]},
+    {off:12, hora:'12:30', cli:6,  items:[['E-012',5],['E-013',5]]},
+    {off:11, hora:'11:15', cli:4,  items:[['E-006',1],['E-007',1]]},
+    {off:10, hora:'10:20', cli:1,  items:[['E-014',1]]},
+    {off:10, hora:'17:05', cli:8,  items:[['E-008',1]]},
+    {off:9,  hora:'09:35', cli:3,  items:[['E-015',2]]},
+    {off:9,  hora:'14:50', cli:9,  items:[['E-003',1]]},
+    {off:8,  hora:'11:00', cli:5,  items:[['E-002',1]], anulada:true},
+    {off:7,  hora:'10:40', cli:10, items:[['E-005',1],['E-008',2],['E-007',3]]},
+    {off:6,  hora:'09:20', cli:6,  items:[['E-014',4]]},
+    {off:6,  hora:'16:10', cli:2,  items:[['E-012',2]]},
+    {off:5,  hora:'12:00', cli:1,  items:[['E-004',1]]},
+    {off:4,  hora:'10:15', cli:7,  items:[['E-010',1]]},
+    {off:4,  hora:'15:30', cli:3,  items:[['E-013',10]]},
+    {off:3,  hora:'11:45', cli:4,  items:[['E-009',2]]},
+    {off:2,  hora:'13:20', cli:5,  items:[['E-007',2],['E-006',1]]},
+    {off:1,  hora:'09:55', cli:8,  items:[['E-001',1]]},
+    {off:1,  hora:'16:25', cli:6,  items:[['E-011',2]]},
+    {off:0,  hora:'09:30', cli:1,  items:[['E-012',1],['E-013',2]]},
+    {off:0,  hora:'11:10', cli:10, items:[['E-015',1]]},
+    {off:0,  hora:'12:45', cli:3,  items:[['E-007',1]]},
   ];
 
   let vid = 1001, did = 1, mid = 1;
-  ventas = ventasSeed.map(v => {
-    const fecha = `${today} ${v.hora}`;
-    const items = v.items.map(it => {
-      const p = productos.find(pr => pr.codigo === it.cod);
-      inventarioMovs.push({id:mid++, idProducto:p.id, fecha, tipoMovimiento:'SALIDA', cantidad:it.cant, motivo:`Venta #${vid}`});
-      return {idDetalle:did++, prodId:p.id, nombre:p.nombre, cant:it.cant, precio:it.precio};
+  ventas = ventasSeed.map(vs => {
+    const fecha = fechaHace(vs.off, vs.hora);
+    const anulada = !!vs.anulada;
+    const items = vs.items.map(([cod, cant]) => {
+      const p = productos.find(pr => pr.codigo === cod);
+      inventarioMovs.push({id:mid++, idProducto:p.id, fecha, tipoMovimiento:'SALIDA', cantidad:cant, motivo:`Venta #${vid}`});
+      if(anulada){
+        // La venta anulada revierte su salida con una entrada compensatoria
+        inventarioMovs.push({id:mid++, idProducto:p.id, fecha, tipoMovimiento:'ENTRADA', cantidad:cant, motivo:`Anulación de venta #${vid}`});
+      }
+      return {idDetalle:did++, prodId:p.id, nombre:p.nombre, cant, precio:p.precio};
     });
     const total = items.reduce((s,i)=>s+i.cant*i.precio, 0);
-    const cli = clientes.find(c=>c.id===v.cliId);
+    const cli = clientes.find(c=>c.id===vs.cli);
+    if(!anulada) cli.totalComprado += total; // solo las ventas válidas suman al histórico del cliente
     return {
       id: vid++, fecha,
-      clienteId: v.cliId, clienteNombre: cli.nombre,
+      clienteId: vs.cli, clienteNombre: cli.nombre,
       items, total, igv: total*0.18/1.18, subtotal: total - total*0.18/1.18,
-      estado:'COMPLETADA', idUsuario:1
+      estado: anulada ? 'ANULADA' : 'COMPLETADA', idUsuario:1
     };
   });
 
-  nextId = {prod:11, cli:9, venta:1006, det:did, mov:mid, usr:2, cat:6, rep:1, log:1};
+  nextId = {prod:16, cli:11, venta:vid, det:did, mov:mid, usr:2, cat:6, rep:1, log:1};
   saveAll();
 }
 
@@ -932,12 +974,23 @@ function navTo(view){
 function renderDashboard(){
   const stockCritico = productos.filter(p=>p.stock<=p.stockMin).length;
   const ventasValidas = ventas.filter(v=>v.estado!=='ANULADA');
-  const ventasHoy = ventasValidas.reduce((s,v)=>s+v.total,0);
+  // "Ventas del día": solo las ventas válidas cuya fecha es hoy
+  const pad2 = n => String(n).padStart(2,'0');
+  const claveDia = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+  const hoyStr = claveDia(new Date());
+  const ventasHoyList = ventasValidas.filter(v=>v.fecha.startsWith(hoyStr));
+  const ventasHoy = ventasHoyList.reduce((s,v)=>s+v.total,0);
 
-  // ventas últimos 7 días (simuladas con variación)
-  const dias7 = ['Sáb','Dom','Lun','Mar','Mié','Jue','Vie'];
-  const valores7 = [890, 450, 1120, 980, 1340, 1080, ventasHoy];
-  const maxV = Math.max(...valores7);
+  // Ventas reales de los últimos 7 días (agrupadas por fecha)
+  const nombreDia = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  const dias7 = [], valores7 = [];
+  for(let i=6;i>=0;i--){
+    const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-i);
+    dias7.push(nombreDia[d.getDay()]);
+    const clave = claveDia(d);
+    valores7.push(ventasValidas.filter(v=>v.fecha.startsWith(clave)).reduce((s,v)=>s+v.total,0));
+  }
+  const maxV = Math.max(1, ...valores7);
 
   const ultimas = [...ventas].reverse().slice(0,5);
 
@@ -980,7 +1033,7 @@ function renderDashboard(){
         <div class="kpi-info">
           <div class="label">Ventas Hoy</div>
           <div class="value">${money(ventasHoy)}</div>
-          <div class="hint">${ventasValidas.length} transacciones</div>
+          <div class="hint">${ventasHoyList.length} transacción(es) hoy</div>
         </div>
       </div>
     </div>
@@ -2236,7 +2289,7 @@ function renderConfig(){
         <button class="btn btn-navy" style="width:100%;margin-top:4px" onclick="exportarBD()">💾 Crear respaldo</button>
         <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="document.getElementById('importInput').click()">📤 Restaurar respaldo</button>
         <input type="file" id="importInput" accept=".json" style="display:none" onchange="importarBD(event)">
-        <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="resetDB()">🔄 Reiniciar base de datos a datos seed</button>
+        <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="resetDB()">🔄 Reiniciar datos de demostración</button>
         <button class="btn btn-danger" style="width:100%;margin-top:8px" onclick="logout()">⏻ Cerrar sesión</button>
       </div>
     </div>
@@ -2244,9 +2297,9 @@ function renderConfig(){
 }
 
 function resetDB(){
-  if(!confirm('¿Borrar la base de datos actual y restaurar los datos de demo? Esta acción no se puede deshacer.')) return;
+  if(!confirm('¿Reiniciar los datos de demostración? Se reemplazarán TODOS los datos actuales (productos, clientes, ventas, categorías y bitácora) por los de ejemplo. Esta acción no se puede deshacer.')) return;
   localStorage.removeItem(DB_KEY);
-  toast('Base de datos reiniciada. Recargando...','info');
+  toast('Datos de demostración restaurados. Recargando...','info');
   setTimeout(()=>location.reload(), 800);
 }
 
