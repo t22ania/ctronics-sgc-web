@@ -3,11 +3,11 @@
 > Una herramienta sencilla para que una tienda de electrónica gestione su día a día.
 > Proyecto del **Curso Integrador II — Universidad Tecnológica del Perú (UTP)**.
 
-**🔗 Pruébalo en vivo:** https://t22ania.github.io/ctronics-sgc/
+**🔗 Pruébalo en vivo:** https://t22ania.github.io/ctronics-sgc-web/
 **👤 Acceso de demostración:** usuario `admin` · contraseña `admin123`
 
-![CI](https://github.com/t22ania/ctronics-sgc/actions/workflows/ci.yml/badge.svg)
-![CD](https://github.com/t22ania/ctronics-sgc/actions/workflows/cd.yml/badge.svg)
+![CI](https://github.com/t22ania/ctronics-sgc-web/actions/workflows/ci.yml/badge.svg)
+![CD](https://github.com/t22ania/ctronics-sgc-web/actions/workflows/cd.yml/badge.svg)
 
 ---
 
@@ -33,7 +33,7 @@ como un panel administrativo completo.
 
 ## 🧪 Cómo probarlo
 
-**En línea (lo más fácil):** entra a [la versión publicada](https://t22ania.github.io/ctronics-sgc/)
+**En línea (lo más fácil):** entra a [la versión publicada](https://t22ania.github.io/ctronics-sgc-web/)
 e ingresa con `admin` / `admin123`.
 
 **En tu computadora:** descarga este repositorio y abre el archivo **`c-tronics.html`** con doble
