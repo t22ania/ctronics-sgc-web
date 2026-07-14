@@ -550,7 +550,7 @@ body.dark tbody tr:hover{background:#283548}
     <div class="login-hint">
       💡 <strong>Demo:</strong> Usuario <code>admin</code> · Contraseña <code>admin123</code>
     </div>
-    <div class="login-footer">v1.1.0 · SQLite local · C-TRONICS SOLUCIONES 2026</div>
+    <div class="login-footer">v1.1.0 · Almacenamiento local · C-TRONICS SOLUCIONES 2026</div>
   </div>
 </div>
 
@@ -605,9 +605,7 @@ body.dark tbody tr:hover{background:#283548}
       <button class="menu-item" data-view="ventas" onclick="navTo('ventas')"><span class="ico">🛒</span> Ventas</button>
       <button class="menu-item" data-view="clientes" onclick="navTo('clientes')"><span class="ico">👥</span> Clientes</button>
       <button class="menu-item" data-view="reportes" onclick="navTo('reportes')"><span class="ico">📈</span> Reportes</button>
-      <div class="menu-label" style="margin-top:14px">Base de datos</div>
-      <button class="menu-item" data-view="esquema" onclick="navTo('esquema')"><span class="ico">🗂️</span> Esquema BD</button>
-      <button class="menu-item" data-view="tablas" onclick="navTo('tablas')"><span class="ico">📋</span> Visor de Tablas</button>
+      <div class="menu-label" style="margin-top:14px">Sistema</div>
       <button class="menu-item" data-view="bitacora" onclick="navTo('bitacora')"><span class="ico">🧾</span> Bitácora</button>
       <button class="menu-item" data-view="config" onclick="navTo('config')"><span class="ico">⚙️</span> Configuración</button>
     </nav>
@@ -668,7 +666,7 @@ body.dark tbody tr:hover{background:#283548}
    ============================================================ */
 const DB_KEY = 'ctronics_data_v2';
 
-// "Tablas" del modelo (siguen el diagrama de clases)
+// Datos del sistema (arreglos en memoria, persistidos en localStorage)
 let productos = [];
 let clientes  = [];
 let ventas    = [];
@@ -908,7 +906,7 @@ function doForcedPassChange(e){
 const VIEW_TITLES = {
   dashboard:'Dashboard', productos:'Gestión de Productos', categorias:'Categorías', inventario:'Inventario',
   ventas:'Ventas · POS', clientes:'Clientes', reportes:'Reportes',
-  esquema:'Esquema de la Base de Datos', tablas:'Visor de Tablas', bitacora:'Bitácora de Actividad', config:'Configuración'
+  bitacora:'Bitácora de Actividad', config:'Configuración'
 };
 
 function navTo(view){
@@ -923,8 +921,6 @@ function navTo(view){
     case 'ventas': renderVentas(); break;
     case 'clientes': renderClientes(); break;
     case 'reportes': renderReportes(); break;
-    case 'esquema': renderEsquema(); break;
-    case 'tablas': renderTablas(); break;
     case 'bitacora': renderBitacora(); break;
     case 'config': renderConfig(); break;
   }
@@ -2095,228 +2091,6 @@ function exportarPDF(){
 }
 
 /* ============================================================
-   MÓDULO · ESQUEMA VISUAL DE LA BD (ER Diagram)
-   ============================================================ */
-function renderEsquema(){
-  // posiciones de cada tabla en el lienzo (x, y, ancho, alto)
-  const tablas = [
-    {n:'Usuario',      x: 40,  y: 30,  w:220, fields:['idUsuario PK','nombreUsuario','contrasena','rol','activo']},
-    {n:'Cliente',      x: 380, y: 30,  w:220, fields:['idCliente PK','dniRuc','nombres','apellidos','telefono','email','direccion','totalComprado']},
-    {n:'Categoria',    x: 720, y: 30,  w:220, fields:['idCategoria PK','nombre','descripcion']},
-    {n:'Reporte',      x: 40,  y: 280, w:220, fields:['idReporte PK','idUsuario FK','tipo','fechaInicio','fechaFin','fechaGeneracion']},
-    {n:'Venta',        x: 380, y: 280, w:220, fields:['idVenta PK','idUsuario FK','idCliente FK','fecha','subtotal','igv','total','estado']},
-    {n:'Producto',     x: 720, y: 280, w:220, fields:['idProducto PK','codigo','nombre','idCategoria FK','precioCosto','precioVenta','stock','stockMinimo']},
-    {n:'DetalleVenta', x: 380, y: 560, w:220, fields:['idDetalle PK','idVenta FK','idProducto FK','cantidad','precioUnitario','subtotal']},
-    {n:'Inventario',   x: 720, y: 560, w:220, fields:['idMovimiento PK','idProducto FK','fecha','tipoMovimiento','cantidad','motivo']},
-  ];
-  const pos = {};
-  tablas.forEach(t=>{
-    const h = 38 + t.fields.length*22;
-    pos[t.n] = {x:t.x, y:t.y, w:t.w, h, cx:t.x+t.w/2, cy:t.y+h/2};
-  });
-
-  // relaciones (origen → destino, etiqueta, tipo)
-  const rels = [
-    ['Usuario','Venta','1 : N · registra','solid'],
-    ['Cliente','Venta','1 : N · realiza','solid'],
-    ['Venta','DetalleVenta','1 : N · contiene','solid'],
-    ['Producto','DetalleVenta','1 : N · referencia','solid'],
-    ['Categoria','Producto','1 : N · agrupa','solid'],
-    ['Producto','Inventario','1 : N · controla','solid'],
-    ['Usuario','Reporte','1 : N · genera','solid'],
-    ['Reporte','Venta','consulta','dashed'],
-    ['Reporte','Producto','consulta','dashed'],
-  ];
-
-  // Función para calcular punto en el borde del rectángulo
-  function edgePoint(from, to){
-    const dx = to.cx - from.cx;
-    const dy = to.cy - from.cy;
-    const ang = Math.atan2(dy, dx);
-    const w2 = from.w/2, h2 = from.h/2;
-    const tx = Math.abs(Math.cos(ang)) > 1e-9 ? w2/Math.abs(Math.cos(ang)) : Infinity;
-    const ty = Math.abs(Math.sin(ang)) > 1e-9 ? h2/Math.abs(Math.sin(ang)) : Infinity;
-    const t = Math.min(tx, ty);
-    return {x: from.cx + Math.cos(ang)*t, y: from.cy + Math.sin(ang)*t};
-  }
-
-  const lines = rels.map(([a,b,label,style])=>{
-    const p1 = edgePoint(pos[a], pos[b]);
-    const p2 = edgePoint(pos[b], pos[a]);
-    const mx = (p1.x + p2.x)/2;
-    const my = (p1.y + p2.y)/2;
-    const dash = style==='dashed' ? 'stroke-dasharray="6,4"' : '';
-    return `
-      <line x1="${p1.x}" y1="${p1.y}" x2="${p2.x}" y2="${p2.y}"
-            stroke="#1e3a5f" stroke-width="1.8" ${dash} marker-end="url(#arrow)"/>
-      <rect x="${mx-50}" y="${my-9}" width="100" height="18" rx="9" fill="#fff" stroke="#1e3a5f" stroke-width="0.8"/>
-      <text x="${mx}" y="${my+4}" text-anchor="middle" font-size="10" font-weight="600" fill="#1e3a5f">${label}</text>
-    `;
-  }).join('');
-
-  const tableBoxes = tablas.map(t=>{
-    const h = 38 + t.fields.length*22;
-    return `
-      <g>
-        <rect x="${t.x}" y="${t.y}" width="${t.w}" height="${h}" rx="8"
-              fill="#fff" stroke="#1e3a5f" stroke-width="2" filter="url(#shadow)"/>
-        <rect x="${t.x}" y="${t.y}" width="${t.w}" height="32" rx="8" fill="#1e3a5f"/>
-        <rect x="${t.x}" y="${t.y+16}" width="${t.w}" height="16" fill="#1e3a5f"/>
-        <text x="${t.x+t.w/2}" y="${t.y+21}" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">${t.n}</text>
-        ${t.fields.map((f,i)=>{
-          const isPk = f.includes('PK');
-          const isFk = f.includes('FK');
-          const color = isPk ? '#f59e0b' : (isFk ? '#3b82f6' : '#1f2937');
-          return `<text x="${t.x+14}" y="${t.y+52+i*22}" font-size="12" fill="${color}" font-weight="${isPk||isFk?'700':'500'}">${f}</text>`;
-        }).join('')}
-      </g>
-    `;
-  }).join('');
-
-  $('#content').innerHTML = `
-    <div class="page-header">
-      <div>
-        <div class="page-title">Diagrama Entidad-Relación · SQLite</div>
-        <div class="page-sub">8 tablas · 9 relaciones · motor SQLite (sql.js · WebAssembly)</div>
-      </div>
-      <div style="display:flex;gap:8px">
-        <span class="badge badge-amber" style="padding:6px 12px">🔑 PK</span>
-        <span class="badge badge-info" style="padding:6px 12px">🔗 FK</span>
-        <span class="badge badge-navy" style="padding:6px 12px">— sólida = composición</span>
-        <span class="badge badge-success" style="padding:6px 12px">- - - punteada = dependencia</span>
-      </div>
-    </div>
-
-    <div class="card" style="overflow:auto;padding:10px">
-      <svg viewBox="0 0 980 800" style="width:100%;min-width:980px;height:auto;display:block">
-        <defs>
-          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
-            <path d="M0,0 L10,5 L0,10 z" fill="#1e3a5f"/>
-          </marker>
-          <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
-            <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.15"/>
-          </filter>
-        </defs>
-        ${lines}
-        ${tableBoxes}
-      </svg>
-    </div>
-
-    <div class="card" style="margin-top:18px">
-      <h4 style="font-size:14px;font-weight:700;margin-bottom:10px">📋 Resumen de tablas (datos actuales)</h4>
-      <table>
-        <thead><tr><th>Tabla</th><th>Registros</th><th>Descripción</th><th></th></tr></thead>
-        <tbody>
-          ${[
-            ['Usuario', usuarios.length, 'Operadores del sistema'],
-            ['Cliente', clientes.length, 'Personas o empresas registradas'],
-            ['Categoria', categorias.length, 'Familias de productos (Smartphones, Audio, etc.)'],
-            ['Producto', productos.length, 'Catálogo de productos a la venta'],
-            ['Venta', ventas.length, 'Cabecera de cada transacción de venta'],
-            ['DetalleVenta', ventas.reduce((s,v)=>s+v.items.length,0), 'Líneas de productos por cada venta'],
-            ['Inventario', inventarioMovs.length, 'Movimientos de stock (entradas/salidas)'],
-            ['Reporte', reportes.length, 'Registro de reportes generados'],
-          ].map(([t,n,d])=>`
-            <tr>
-              <td><strong>${t}</strong></td>
-              <td><span class="badge badge-info">${n} filas</span></td>
-              <td>${d}</td>
-              <td><button class="btn btn-ghost btn-sm" onclick="navTo('tablas');setTimeout(()=>verTabla('${t}'),50)">Ver datos →</button></td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    </div>
-  `;
-}
-
-/* ============================================================
-   MÓDULO · VISOR DE TABLAS (navega los datos crudos por tabla)
-   ============================================================ */
-const TABLAS_INFO = {
-  Usuario:      {desc:'Operadores del sistema',                    get:()=>usuarios,       cols:['id','nombreUsuario','contrasena','rol','activo']},
-  Cliente:      {desc:'Personas o empresas registradas',           get:()=>clientes,       cols:['id','doc','nombre','tel','email','direccion','totalComprado']},
-  Categoria:    {desc:'Familias de productos',                     get:()=>categorias,     cols:['id','nombre','descripcion']},
-  Producto:     {desc:'Catálogo de productos a la venta',          get:()=>productos,      cols:['id','codigo','nombre','categoria','costo','precio','stock','stockMin']},
-  Venta:        {desc:'Cabecera de cada transacción',              get:()=>ventas.map(v=>({id:v.id, fecha:v.fecha, idCliente:v.clienteId, cliente:v.clienteNombre, subtotal:v.subtotal?.toFixed(2), igv:v.igv?.toFixed(2), total:v.total, estado:v.estado})), cols:['id','fecha','idCliente','cliente','subtotal','igv','total','estado']},
-  DetalleVenta: {desc:'Líneas de productos por venta',             get:()=>ventas.flatMap(v=>v.items.map(i=>({idDetalle:i.idDetalle, idVenta:v.id, idProducto:i.prodId, producto:i.nombre, cantidad:i.cant, precioUnitario:i.precio, subtotal:(i.cant*i.precio).toFixed(2)}))), cols:['idDetalle','idVenta','idProducto','producto','cantidad','precioUnitario','subtotal']},
-  Inventario:   {desc:'Movimientos de stock (entradas/salidas)',   get:()=>inventarioMovs.map(m=>({...m, producto: productos.find(p=>p.id===m.idProducto)?.nombre||'?'})), cols:['id','fecha','idProducto','producto','tipoMovimiento','cantidad','motivo']},
-  Reporte:      {desc:'Registro de reportes generados',            get:()=>reportes,       cols:['id','idUsuario','tipo','fechaInicio','fechaFin','fechaGeneracion']},
-};
-
-let tablaActual = 'Producto';
-
-function renderTablas(){
-  $('#content').innerHTML = `
-    <div class="page-header">
-      <div>
-        <div class="page-title">Visor de Tablas</div>
-        <div class="page-sub">Explora los datos crudos de cada tabla del modelo de datos</div>
-      </div>
-      <button class="btn btn-navy" onclick="exportarBD()">💾 Crear respaldo</button>
-    </div>
-
-    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px">
-      ${Object.keys(TABLAS_INFO).map(t=>`
-        <button class="btn ${t===tablaActual?'btn-navy':'btn-ghost'}" onclick="verTabla('${t}')">
-          ${t} <span style="opacity:.7;margin-left:6px">${TABLAS_INFO[t].get().length}</span>
-        </button>
-      `).join('')}
-    </div>
-
-    <div id="tablaContent"></div>
-  `;
-  verTabla(tablaActual);
-}
-
-function verTabla(nombre){
-  tablaActual = nombre;
-  const info = TABLAS_INFO[nombre];
-  const rows = info.get();
-  // resaltar el botón activo
-  $$('#content > div button.btn').forEach(b=>{
-    if(b.textContent.trim().startsWith(nombre)) b.className = 'btn btn-navy';
-    else if(Object.keys(TABLAS_INFO).some(t=>b.textContent.trim().startsWith(t))) b.className = 'btn btn-ghost';
-  });
-
-  const cols = info.cols;
-  const html = `
-    <div class="card" style="margin-bottom:14px">
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <div>
-          <h3 style="font-size:18px;font-weight:700">Tabla: ${nombre}</h3>
-          <div style="font-size:13px;color:var(--text-muted);margin-top:2px">${info.desc} · <strong>${rows.length}</strong> registro(s)</div>
-        </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          ${cols.map(c=>{
-            const isPk = c==='id' || c.startsWith('id') && c.length<=15 && c===c.replace(/[A-Z].*/,'') ? false : c==='id';
-            const isFk = c.startsWith('id') && c !== 'id';
-            return `<span class="badge ${c==='id'?'badge-amber':isFk?'badge-info':'badge-navy'}" style="font-size:10px">${c}${c==='id'?' 🔑':isFk?' 🔗':''}</span>`;
-          }).join('')}
-        </div>
-      </div>
-    </div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead>
-        <tbody>
-          ${rows.length===0
-            ? `<tr><td colspan="${cols.length}" class="empty">Sin registros</td></tr>`
-            : rows.map(r=>`<tr>${cols.map(c=>{
-                const v = r[c];
-                if(v===null||v===undefined||v==='') return `<td><em style="color:#94a3b8">—</em></td>`;
-                return `<td>${esc(String(v))}</td>`;
-              }).join('')}</tr>`).join('')}
-        </tbody>
-      </table>
-    </div>
-  `;
-  // Si renderTablas no se ha llamado, llamarlo primero
-  if(!$('#tablaContent')){ renderTablas(); return; }
-  $('#tablaContent').innerHTML = html;
-}
-
-/* ============================================================
    MÓDULO · BITÁCORA DE ACTIVIDAD
    ============================================================ */
 let filtroBitacoraTxt = '';
@@ -2451,8 +2225,7 @@ function renderConfig(){
 
         <h4 style="font-size:14px;font-weight:700;margin:18px 0 10px">💾 Base de datos</h4>
         <div style="background:#f9fafb;padding:12px;border-radius:8px;font-size:12px;color:var(--text-muted);margin-bottom:10px;line-height:1.6">
-          <strong>Modelo:</strong> Relacional · 8 tablas según diagrama<br>
-          <strong>Persistencia:</strong> localStorage del navegador<br>
+          <strong>Almacenamiento:</strong> Local en el navegador (localStorage)<br>
           <strong>Productos:</strong> ${productos.length} ·
           <strong>Clientes:</strong> ${clientes.length} ·
           <strong>Ventas:</strong> ${ventas.length} ·
